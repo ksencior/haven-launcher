@@ -1,15 +1,21 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
-const net = require('net');
-const { Client, Authenticator } = require('minecraft-launcher-core');
+const path =                            require('path');
+const os =                              require('os');
+const fs =                              require('fs');
+const net =                             require('net');
+const axios =                           require('axios');
+const AdmZip =                          require('adm-zip');
+const { Client, Authenticator } =       require('minecraft-launcher-core');
 const launcher = new Client();
 
-const configPath = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'config.json');
+const configPath    = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'config.json');
+const instancesPath = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'instances');
 
 let logWindow;
 let gameProcess;
+
+const modpacksPath = path.join(__dirname, 'modpacks.json');
+const MODPACKS = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
 
 function loadConfig() {
     if (fs.existsSync(configPath)) {
@@ -34,6 +40,7 @@ function createWindow() {
     win.loadFile('index.html');
 
     win.webContents.on('did-finish-load', () => {
+        win.webContents.send('load-modpacks', MODPACKS);
         win.webContents.send('load-settings', loadConfig());
     });
 }
@@ -60,22 +67,64 @@ ipcMain.on('save-settings', (event, data) => {
 
 app.whenReady().then(createWindow);
 
-ipcMain.on('launch-game', (event, data) => {
+ipcMain.on('launch-game', async (event, data) => {
 
     launcher.removeAllListeners();
     
     console.log("Launching new Minecraft process...");
+    const pack = MODPACKS[data.version];
+
+    if (!pack) {
+        console.error('Could not find definition for', data.version);
+        return;
+    }
+
+    let gameRoot;
+    let launchVersion;
+
+    if (pack.loader !== null) {
+        gameRoot = path.join(instancesPath, pack.folderName);
+        launchVersion = {
+            number: pack.mcVersion,
+            type: "release",
+            custom: pack.loader
+        };
+
+        if (!fs.existsSync(gameRoot)) {
+            console.warn(`Could not find: ${pack.folderName}. Starting download now...`);
+
+            if (!fs.existsSync(instancesPath)) fs.mkdirSync(instancesPath, {recursive: true});
+
+            const zipPath = path.join(instancesPath, pack.zipName);
+            const downloadUrl = `https://havenmine.pl/launcher/api/${pack.zipName}`;
+
+            try {
+                await downloadFile(downloadUrl, zipPath, event);
+                console.log('Downloaded! Now un-ziping the pack...');
+                const zip = new AdmZip(zipPath);
+                zip.extractAllTo(gameRoot, true);
+                console.log('Done!');
+                fs.unlinkSync(zipPath);
+            } catch (err) {
+                console.error("Download error: ", err);
+                return;
+            }
+        }
+    } else {
+        gameRoot = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'game');
+        launchVersion = {
+            number: pack.mcVersion,
+            type: "release"
+        };
+    }
     console.log(`Loading Minecraft ${data.version} for ${data.user}. Loaded memory: ${data.ram}GB RAM.`)
     if (logWindow) logWindow.close();
     createLogWindow();
 
     let opts = {
         authorization: Authenticator.getAuth(data.user),
-        root: path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher'),
-        version: {
-            number: data.version,
-            type: "release"
-        },
+        root: gameRoot,
+        version: launchVersion,
         memory: {
             max: `${data.ram}G`,
             min: "2G"
@@ -89,10 +138,7 @@ ipcMain.on('launch-game', (event, data) => {
         if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER/ERR] ${err.message}`);
     });
     const logFile = path.join(
-        os.homedir(),
-        'AppData',
-        'Roaming',
-        'HavenLauncher',
+        gameRoot,
         'logs',
         'latest.log'
     );
@@ -241,3 +287,31 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
+
+async function downloadFile(url, outputPath, event) {
+    const writer = fs.createWriteStream(outputPath);
+
+    const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream'
+    });
+
+    const totalBytes = parseInt(response.headers['content-length'], 10);
+    let downloadedBytes = 0;
+
+    response.data.on('data', (chunk) => {
+        downloadedBytes += chunk.length;
+
+        event.reply('download-progress', {
+            task: downloadedBytes,
+            total: totalBytes
+        });
+    });
+
+    return new Promise((resolve, reject) => {
+        response.data.pipe(writer);
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
+}

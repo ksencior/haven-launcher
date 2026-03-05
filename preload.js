@@ -12,5 +12,6 @@ contextBridge.exposeInMainWorld('api', {
     killGame: () => ipcRenderer.send('kill-game'),
     closeLogs: () => ipcRenderer.send('close-logs'),
     openLogs: () => ipcRenderer.send('open-logs'),
-    pingServer: (ip) => ipcRenderer.invoke('ping-server', ip)
+    pingServer: (ip) => ipcRenderer.invoke('ping-server', ip),
+    onLoadModpacks: (callback) => ipcRenderer.on('load-modpacks', (event, data) => callback(data))
 });

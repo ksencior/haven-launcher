@@ -103,7 +103,7 @@ btn.addEventListener('click', () => {
     const gameOptions = {
         user: settings.nick,
         ram: settings.ram,
-        version: settings.version.split(' - ')[0]
+        version: settings.version
     }
 
     if (window.api) {
@@ -158,6 +158,17 @@ window.api.onLoadSettings((config) => {
     // Ukryj ekran ładowania i pokaż główną zawartość aplikacji
     loadingScreen.style.display = 'none';
     mainLayout.style.display = 'flex';
+});
+window.api.onLoadModpacks((modpacks) => {
+    const select = document.getElementById('version-select');
+    select.innerHTML = '';
+
+    Object.keys(modpacks).forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.innerText = name;
+        select.appendChild(option);
+    });
 });
 window.api.onGameClosed(() => {
     btn.innerText = 'GRAJ';

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400&display=swap');
+
+        :root {
+            --bg-dark: #0c0c0c;
+            --bg-card: #161616;
+            --accent: rgb(185, 41, 185);
+            --accent-glow: rgba(185, 41, 185, 0.4);
+            --text-main: #f0f0f0;
+            --text-dim: #888;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        /* Pasek tytułowy konsoli */
+        .log-header {
+            height: 50px;
+            background: #050505;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+            border-bottom: 1px solid #1a1a1a;
+            -webkit-app-region: drag;
+        }
+
+        .log-title {
+            font-weight: 800;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Kontener logów */
+        #log-container {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            background: radial-gradient(circle at bottom right, #1a0a1a, #0c0c0c);
+        }
+
+        /* Styl linii logów */
+        .log-line {
+            margin-bottom: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 2px solid transparent;
+            animation: slideIn 0.2s ease-out;
+        }
+
+        .log-line.launcher { border-left-color: var(--accent); }
+        .log-line.game { border-left-color: #2ecc71; }
+
+        .time { color: var(--text-dim); margin-right: 10px; font-size: 11px; }
+        .tag { font-weight: 600; margin-right: 10px; }
+        .tag.launcher { color: var(--accent); }
+        .tag.game { color: #2ecc71; }
+
+        .log-line.info { border-left-color: #3498db; }
+        .log-line.warn { border-left-color: #f1c40f; color: #f39c12; }
+        .log-line.error { border-left-color: #e74c3c; color: #ff4757; font-weight: 600; }
+
+        .tag.info { color: #3498db; }
+        .tag.warn { color: #f1c40f; }
+        .tag.error { color: #e74c3c; }
+
+        .kill-btn {
+            background: #c0392b;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.2s;
+            -webkit-app-region: no-drag; /* Ważne, żeby dało się klikać na pasku drag */
+        }
+
+        .kill-btn:hover {
+            background: #e74c3c;
+            box-shadow: 0 0 10px rgba(231, 76, 60, 0.4);
+        }
+
+        /* Scrollbar w stylu Haven */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-5px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="log-header">
+        <div class="log-title">
+            <div class="dot"></div>
+            Konsola <span style="color: var(--text-dim); margin-left: 5px;">| HavenLauncher</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="kill-btn" onclick="window.api.killGame()">Zabij instancję</button>
+            <div style="font-size: 10px; color: var(--text-dim); -webkit-app-region: no-drag;">
+                ~ (tylda), aby zamknąć
+            </div>
+        </div>
+    </div>
+
+    <div id="log-container"></div>
+
+    <script>
+        const container = document.getElementById('log-container');
+
+        window.api.onLog((data) => {
+            const line = document.createElement('div');
+            let type = 'info'; 
+            let tagText = 'GAME';
+
+            // 1. Rozpoznawanie typu logu na podstawie treści (dla Minecrafta)
+            const lowerData = data.toLowerCase();
+            
+            if (data.includes('[LAUNCHER]')) {
+                type = 'launcher';
+                tagText = 'LAUNCHER';
+            } else if (data.includes('/ERROR]')) {
+                type = 'error';
+                tagText = 'ERROR';
+            }
+            else if (data.includes('/WARN]')) {
+                type = 'warn';
+                tagText = 'WARN';
+            }
+            else if (data.includes('/INFO]')) {
+                type = 'info';
+                tagText = 'INFO';
+            }
+
+            line.className = `log-line ${type}`;
+            
+            // 2. Czyszczenie tekstu
+            let cleanMsg = data.replace('[LAUNCHER] ', '').replace('[GRA] ', '').replace('[GRA/ERROR] ', '');
+            
+            cleanMsg = cleanMsg.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, '');
+
+            const time = new Date().toLocaleTimeString();
+
+            line.innerHTML = `
+                <span class="time">${time}</span>
+                <span class="tag ${type}">${tagText}</span>
+                <span class="message">${cleanMsg}</span>
+            `;
+
+            container.appendChild(line);
+
+            container.scrollTop = container.scrollHeight;
+
+            if (container.children.length > 1000) {
+                container.removeChild(container.firstChild);
+            }
+        });
+
+        // Obsługa ESC
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Backquote') {
+                e.preventDefault();
+                if (window.api && window.api.closeLogs) {
+                    window.api.closeLogs();
+                } else {
+                    window.close();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

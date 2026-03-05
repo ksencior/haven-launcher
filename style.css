@@ -454,6 +454,44 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     text-transform: uppercase;
 }
 
+.links-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.link-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #222;
+    color: var(--text-main);
+    padding: 12px 15px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.link-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(5px);
+    border-color: #444;
+}
+
+.link-btn.discord:hover { border-left: 3px solid #5865F2; }
+.link-btn.www:hover { border-left: 3px solid #2ecc71; }
+.link-btn.shop:hover { border-left: 3px solid #e1b12c; }
+
+/* Kolory dynamiczne dla statusu */
+.val.good { color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.3); }
+.val.mid { color: #f1c40f; text-shadow: 0 0 10px rgba(241, 196, 15, 0.3); }
+.val.bad { color: #e74c3c; text-shadow: 0 0 10px rgba(231, 76, 60, 0.3); }
+
 @keyframes loading-anim {
     0% {
         scale: 1;

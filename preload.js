@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld('api', {
     onLog: (callback) => ipcRenderer.on('mc-log', (event, data) => callback(data)),
     killGame: () => ipcRenderer.send('kill-game'),
     closeLogs: () => ipcRenderer.send('close-logs'),
-    openLogs: () => ipcRenderer.send('open-logs')
+    openLogs: () => ipcRenderer.send('open-logs'),
+    pingServer: (ip) => ipcRenderer.invoke('ping-server', ip)
 });

@@ -50,6 +50,52 @@ function getCurrentSettings() {
     }
 }
 
+const pingEl = document.getElementById('serverPing');
+const playersEl = document.getElementById('serverPlayers');
+const serverIp = 'pl04.nesv.pl:25484';
+
+async function fetchServerStatus() {
+    try {
+        // 1. Prawdziwy Ping z komputera gracza do serwera
+        if (window.api && window.api.pingServer) {
+            const ping = await window.api.pingServer(serverIp);
+            
+            pingEl.className = 'val';
+            if (ping !== null) {
+                pingEl.innerText = `${ping} ms`;
+                if (ping < 50) pingEl.classList.add('good');
+                else if (ping < 100) pingEl.classList.add('mid');
+                else pingEl.classList.add('bad');
+            } else {
+                pingEl.innerText = "Offline";
+                pingEl.classList.add('bad');
+            }
+        }
+
+        // 2. Gracze online pobierani z publicznego API Minecrafta (zamiast TPS)
+        const response = await fetch(`https://api.mcsrvstat.us/3/${serverIp}`);
+        const data = await response.json();
+        
+        playersEl.className = 'val';
+        if (data.online) {
+            playersEl.innerText = `${data.players.online}/${data.players.max}`;
+            playersEl.classList.add('good');
+        } else {
+            playersEl.innerText = "Niedostępne";
+            playersEl.classList.add('bad');
+        }
+
+    } catch (e) {
+        console.error("Błąd pobierania statusu serwera:", e);
+        playersEl.innerText = "Błąd API";
+        playersEl.className = 'val bad';
+    }
+}
+
+// Uruchomienie od razu i odświeżanie co 10 sekund (żeby nie zabić API)
+fetchServerStatus();
+setInterval(fetchServerStatus, 10000);
+
 btn.addEventListener('click', () => {
     const settings = getCurrentSettings();
     window.api.saveSettings(settings);

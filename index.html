@@ -31,8 +31,8 @@
                 <div id="page-home" class="page active">
                     <div class="hero">
                         <div class="welcome-text">
-                            <h2>Witaj w Haven! <span class="online-dot"></span></h2>
-                            <p>Serwer główny jest online. Graczy: 12/100</p>
+                            <h2>Gotowy na przygodę?</h2>
+                            <p>Wybierz wersję gry, dostosuj RAM i ruszaj do świata Haven.</p>
                         </div>
                         <div class="skin-preview">
                             <img id="skinHead" src="https://minotar.net/helm/Steve/128.png">
@@ -40,18 +40,18 @@
                     </div>
                     
                     <div class="dashboard-grid">
-                        <div class="card news">
-                            <h3>Ostatnie zmiany</h3>
-                            <ul>
-                                <li><span>12.10</span> Nowy system ekonomii</li>
-                                <li><span>10.10</span> Event Halloweenowy startuje!</li>
-                                <li><span>05.10</span> Poprawki stabilności 1.20.1</li>
-                            </ul>
+                        <div class="card links-card">
+                            <h3>Społeczność Haven</h3>
+                            <div class="links-grid">
+                                <button class="link-btn discord" onclick="require('electron').shell.openExternal('https://discord.gg/twojlink')">🎮 Discord</button>
+                                <button class="link-btn www" onclick="require('electron').shell.openExternal('https://twojastrona.pl')">🌐 Strona WWW</button>
+                                <button class="link-btn shop" onclick="require('electron').shell.openExternal('https://sklep.twojastrona.pl')">🛒 ItemShop</button>
+                            </div>
                         </div>
                         <div class="card server-status">
-                            <h3>Status Techniczny</h3>
-                            <div class="stat-row"><span>Ping:</span> <span class="val">24ms</span></div>
-                            <div class="stat-row"><span>TPS:</span> <span class="val">19.9</span></div>
+                            <h3>Status Sieciowy</h3>
+                            <div class="stat-row"><span>Ping do serwera:</span> <span class="val" id="serverPing">Ładowanie...</span></div>
+                            <div class="stat-row"><span>Gracze online:</span> <span class="val" id="serverPlayers">Ładowanie...</span></div>
                         </div>
                     </div>
                 </div>

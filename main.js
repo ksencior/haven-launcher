@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const net = require('net');
 const { Client, Authenticator } = require('minecraft-launcher-core');
 const launcher = new Client();
 
@@ -196,6 +197,33 @@ ipcMain.on('open-logs', () => {
         logWindow.show();
         logWindow.focus();
     }
+});
+
+ipcMain.handle('ping-server', async (event, host) => {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const socket = new net.Socket();
+        
+        socket.setTimeout(3000); // Max 3 sekundy czekania
+        
+        socket.on('connect', () => {
+            const ping = Date.now() - start;
+            socket.destroy();
+            resolve(ping);
+        });
+        
+        socket.on('timeout', () => {
+            socket.destroy();
+            resolve(null);
+        });
+        
+        socket.on('error', () => {
+            socket.destroy();
+            resolve(null);
+        });
+        
+        socket.connect(25565, host);
+    });
 });
 
 ipcMain.on('window-close', (event) => {

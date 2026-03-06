@@ -3,15 +3,22 @@
         "mcVersion": "1.20.4",
         "loader": "fabric-loader-0.18.4-1.20.4",
         "zipName": "HavenPack-1-20-4.zip",
-        "folderName": "HavenPack_1_20_4"
+        "folderName": "HavenPack_1_20_4",
+        "latest": true
     },
-    "1.21.10 - Vanilla": {
+    "HavenPack 1.21.10": {
+        "mcVersion": "1.21.10",
+        "loader": "fabric-loader-0.18.4-1.20.4",
+        "zipName": "HavenPack-1-21-10.zip",
+        "folderName": "HavenPack_1_21_10"
+    },
+    "Vanilla - 1.21.10": {
         "mcVersion": "1.21.10",
         "loader": null,
         "zipName": null,
         "folderName": "game"
     },
-    "1.7.2 - Vanilla": {
+    "Vanilla - 1.7.2": {
         "mcVersion": "1.7.2",
         "loader": null,
         "zipName": null,

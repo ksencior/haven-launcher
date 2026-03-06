@@ -18,6 +18,7 @@ let gameProcess;
 
 const modpacksPath = path.join(__dirname, 'modpacks.json');
 const MODPACKS = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
+let modpacksWithLatest;
 
 function getAccounts() {
     if (fs.existsSync(accountsPath)) {
@@ -48,13 +49,35 @@ function createWindow() {
             contextIsolation: true
         },
         frame: false,
+        resizable: false
     });
-
+    win.webContents.openDevTools();
     win.loadFile('index.html');
 
-    win.webContents.on('did-finish-load', () => {
-        win.webContents.send('load-modpacks', MODPACKS);
+    win.webContents.on('did-finish-load', async () => {
         win.webContents.send('load-settings', loadConfig());
+        try {
+            const res = await axios.get('https://launchermeta.mojang.com/mc/game/version_manifest.json');
+            const latestVersion = res.data.latest.release;
+
+            modpacksWithLatest = { ...MODPACKS };
+            let title = `Najnowsza wersja (${latestVersion})`
+            const latestVanilla = {
+                [title]: {
+                    "mcVersion": latestVersion,
+                    "loader": null,
+                    "zipName": null,
+                    "folderName": "game",
+                    "latest": true
+                }
+            }
+
+            modpacksWithLatest = Object.assign(latestVanilla, modpacksWithLatest);
+            win.webContents.send('load-modpacks', modpacksWithLatest);
+        } catch (err) {
+            console.error("Error while fetching the latest Minecraft verison:", err);
+            win.webContents.send('load-modpacks', MODPACKS);
+        }
     });
 }
 
@@ -100,7 +123,7 @@ ipcMain.on('launch-game', async (event, data) => {
     launcher.removeAllListeners();
     
     console.log("Launching new Minecraft process...");
-    const pack = MODPACKS[data.version];
+    const pack = modpacksWithLatest[data.version];
 
     let finalAuth;
     if (data.premiumAuth) {

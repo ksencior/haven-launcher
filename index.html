@@ -44,11 +44,11 @@
                     
                     <div class="dashboard-grid">
                         <div class="card links-card">
-                            <h3>Społeczność Haven</h3>
+                            <h3>Lorem ipsum dolor</h3>
                             <div class="links-grid">
-                                <button class="link-btn discord" onclick="require('electron').shell.openExternal('https://discord.gg/WuCmQ5aSt5')">🎮 Discord</button>
-                                <button class="link-btn www" onclick="require('electron').shell.openExternal('https://havenmine.pl')">🌐 Strona WWW</button>
-                                <button class="link-btn shop" onclick="require('electron').shell.openExternal('https://havenmine.pl/shop.php')">🛒 ItemShop</button>
+                                <button class="link-btn discord">🎮 Lorem</button>
+                                <button class="link-btn www">🌐ipsum</button>
+                                <button class="link-btn shop">🛒 dolor</button>
                             </div>
                         </div>
                         <div class="card server-status">
@@ -61,24 +61,14 @@
 
                 <div id="page-tools" class="page">
                     <div class="section-header">
-                        <h2>Zarządzanie Modami</h2>
-                        <p>Instaluj i zarządzaj dodatkami do gry.</p>
+                        <h2>Wybierz paczke</h2>
                     </div>
-                    <div class="tools-grid">
-                        <div class="tool-card">
-                            <div class="tool-icon">📦</div>
+                    <div class="tools-grid" id="modpacks-container">
+                        <div class="tool-card modpack">
+                            <div class="tool-icon">⭐</div>
                             <div class="tool-info">
-                                <h4>Optifine / Iris</h4>
-                                <p>Zwiększ FPS i dodaj shadery.</p>
-                                <button class="btn-small">Zainstaluj</button>
-                            </div>
-                        </div>
-                        <div class="tool-card">
-                            <div class="tool-icon">🗺️</div>
-                            <div class="tool-info">
-                                <h4>Xaero's Minimap</h4>
-                                <p>Podręczna mapa świata.</p>
-                                <button class="btn-small installed">Zainstalowane</button>
+                                <h4>HavenPack 1.20.4</h4>
+                                <p>Modpack specjalnie przygotowany przez administrację HavenMine!</p>
                             </div>
                         </div>
                     </div>
@@ -126,23 +116,19 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="action-bar">
-                    <div class="launch-controls">
-                        <div class="v-selector">
-                            <small>Wersja gry</small>
-                            <select id="version-select">
-                                <option>1.21.10 - Vanilla</option>
-                                <option>1.20.4 - Vanilla</option>
-                            </select>
-                        </div>
-                        <button id="playBtn">GRAJ</button>
-                    </div>
-                    <div class="progress-container" id="pBarContainer">
-                        <div id="pBar"></div>
-                    </div>
-                </div>
             </main>
+        </div>
+        <div class="action-bar">
+            <div class="launch-controls">
+                <div class="v-selector">
+                    <small>Wybierz modpack</small>
+                    <button id="selectVersionBtn">Wybierz</button>
+                </div>
+                <button id="playBtn">GRAJ</button>
+            </div>
+            <div class="progress-container" id="pBarContainer">
+                <div id="pBar"></div>
+            </div>
         </div>
         <div id="accountModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">

@@ -1,10 +1,12 @@
 const btn = document.getElementById('playBtn');
+const selectVersionBtn = document.getElementById('selectVersionBtn');
 
 const navItems = document.querySelectorAll('.nav-item');
 const pages = document.querySelectorAll('.page');
 
 const pBar = document.getElementById('pBar');
 const pBarContainer = document.getElementById('pBarContainer');
+const actionBar = document.querySelector('.action-bar');
 
 const loadingScreen = document.getElementById('loading-screen');
 const loadingText = document.getElementById('loading-text');
@@ -12,7 +14,6 @@ const mainLayout = document.querySelector('.main-layout');
 
 const ramSlider = document.getElementById('ramSlider');
 const ramVal = document.getElementById('ramVal');
-const versionSelect = document.getElementById('version-select');
 
 const accountModal = document.getElementById('accountModal');
 const accountsList = document.getElementById('accountsList');
@@ -28,7 +29,7 @@ const serverIp = 'pl04.nesv.pl:25484';
 
 let accounts = [];
 let activeAccount = null;
-let currentPremiumAuth = null;
+let selectedPack = null;
 
 navItems.forEach(item => {
     item.onclick = () => {
@@ -49,8 +50,21 @@ ramSlider.oninput = function() {
 function getCurrentSettings() {
     return {
         ram: ramSlider.value,
-        version: versionSelect.value
+        version: selectedPack
     }
+}
+
+function selectVersion(modpack) {
+    selectedPack = modpack;
+    const modpacks = document.querySelectorAll('.modpackOption');
+    modpacks.forEach((pack) = (p) => {
+        p.classList.remove('selected');
+        const name = p.dataset.modpackname;
+        if (name === selectedPack) {
+            p.classList.add('selected')
+        }
+    });
+    selectVersionBtn.innerText = modpack;
 }
 
 async function fetchServerStatus() {
@@ -91,7 +105,6 @@ async function fetchServerStatus() {
     }
 }
 
-// Uruchomienie od razu i odświeżanie co 10 sekund (żeby nie zabić API)
 fetchServerStatus();
 setInterval(fetchServerStatus, 10000);
 
@@ -160,7 +173,7 @@ async function selectAccount(index) {
     activeAccount = accounts[index];
     await window.api.saveAccounts(accounts);
     updateSidebarUI();
-    accountModal.style.display = 'none'; // Zamyka modal po wyborze
+    accountModal.style.display = 'none';
 }
 
 async function deleteAccount(index) {
@@ -210,20 +223,18 @@ document.getElementById('confirmOfflineBtn').onclick = async () => {
         return;
     }
 
-    // Logika dodawania
     accounts.forEach(a => a.active = false);
     accounts.push({ type: 'offline', name: nick, active: true, auth: null });
     activeAccount = accounts[accounts.length - 1];
 
     await window.api.saveAccounts(accounts);
-    
-    // Reset UI
+
     updateSidebarUI();
     renderAccountsList();
     offlineNickInput.value = '';
     modalAddSection.style.display = 'none';
     modalMainSection.style.display = 'block';
-    accountModal.style.display = 'none'; // Zamknij modal po sukcesie
+    accountModal.style.display = 'none';
 };
 offlineNickInput.onkeydown = (e) => {
     if (e.key === 'Enter') document.getElementById('confirmOfflineBtn').click();
@@ -231,7 +242,6 @@ offlineNickInput.onkeydown = (e) => {
 
 const closeModal = () => {
     accountModal.style.display = 'none';
-    // Resetujemy widok do listy, żeby przy następnym otwarciu nie straszył formularz
     modalAddSection.style.display = 'none';
     modalMainSection.style.display = 'block';
 };
@@ -255,6 +265,22 @@ document.getElementById('addPremiumBtn').onclick = async () => {
     }
 };
 
+//VERSION BTN
+selectVersionBtn.onclick = () => {
+    const pageId = `page-tools`;
+        
+    navItems.forEach((i) => {
+        i.classList.remove('active');
+        if (i.dataset.page === "tools") {
+            i.classList.add('active');
+        }
+    });
+
+    pages.forEach(p => p.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
+}
+
+// GRAJ BTN
 btn.addEventListener('click', () => {
     const settings = getCurrentSettings();
     window.api.saveSettings(settings);
@@ -267,7 +293,7 @@ btn.addEventListener('click', () => {
     const gameOptions = {
         user: activeAccount.name,
         ram: settings.ram,
-        version: settings.version,
+        version: selectedPack,
         premiumAuth: activeAccount.type === 'premium' ? activeAccount.auth : null
     }
 
@@ -284,6 +310,7 @@ document.getElementById('closeBtn').onclick = () => {
     window.api.saveSettings(getCurrentSettings());
 
     mainLayout.style.display = 'none';
+    actionBar.style.display = 'none';
     loadingScreen.style.display = 'flex';
     loadingText.innerText = 'Zamykanie...';
 
@@ -301,7 +328,7 @@ window.addEventListener('keydown', (e) => {
 
 
 window.api.onProgress((data) => {
-    pBarContainer.style.display = 'block'; // Pokazujemy pasek
+    pBarContainer.style.display = 'block';
     const percent = Math.round((data.task / data.total) * 100);
     
     pBar.style.width = percent + "%";
@@ -313,22 +340,97 @@ window.api.onProgress((data) => {
 window.api.onLoadSettings((config) => {
     ramSlider.value = config.ram;
     ramVal.innerHTML = config.ram + "GB";
-    versionSelect.value = config.version;
+    if (config.version != null) {
+        selectedPack = config.version;
+    } else {
+        selectedPack = 'HavenPack 1.20.4';
+    }
 
-    // Ukryj ekran ładowania i pokaż główną zawartość aplikacji
     loadingScreen.style.display = 'none';
     mainLayout.style.display = 'flex';
+    actionBar.style.display = 'flex';
 });
 window.api.onLoadModpacks((modpacks) => {
-    const select = document.getElementById('version-select');
-    select.innerHTML = '';
+    const container = document.getElementById('modpacks-container');
+    container.innerHTML = '';
+
+    const groups = {
+        "Polecane": [],
+        "Paczki HavenMine": [],
+        "Vanilla": [],
+        "Inne": []
+    };
 
     Object.keys(modpacks).forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.innerText = name;
-        select.appendChild(option);
-    });
+        const packData = modpacks[name];
+        const nameLC = name.toLowerCase();
+
+        if (packData.latest) {
+            groups["Polecane"].push({name, data: packData});
+        } else if (nameLC.includes('havenpack')) {
+            groups["Paczki HavenMine"].push({name, data: packData});
+        } else if (nameLC.includes('vanilla')) {
+            groups["Vanilla"].push({name, data: packData});
+        } else {
+            groups["Inne"].push({name, data: packData});
+        }
+    })
+
+    Object.keys(groups).forEach(catName => {
+        const categoryPacks = groups[catName];
+
+        if (categoryPacks.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'category-section'
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerText = catName;
+        section.appendChild(header);
+
+        const grid = document.createElement('div');
+        grid.className = 'category-grid';
+
+        categoryPacks.forEach(packObj => {
+            const name = packObj.name;
+            const packData = packObj.data;
+
+            const packDiv = document.createElement('div');
+            packDiv.className = 'modpackOption';
+            packDiv.dataset.modpackname = name;
+
+            let icon;
+            let opis;
+            if (name.toLowerCase().includes('havenpack')) {
+                icon = '⭐';
+                opis = 'Modpack specjalnie przygotowany przez administrację HavenMine!';
+            } else if (name.toLowerCase().includes('vanilla')) {
+                icon = '🌍';
+                opis = 'Czysty Minecraft. Dla graczy, którzy nie potrzebują modyfikacji.'
+            } else if (packData.latest) {
+                icon = '🚀';
+                opis = 'Zawsze aktualna wersja Minecrafta. '
+            } else {
+                icon = '📦';
+                opis = 'Nieznana zmodyfikowana paczka modów.';
+            }
+            packDiv.innerHTML = `
+            <div class="tool-card">
+                <div class="tool-icon">${icon}</div>
+                <div class="tool-info">
+                    <h4>${name}</h4>
+                    <p>${opis}</p>
+                </div>
+            </div>
+            `;
+            packDiv.onclick = () => selectVersion(name);
+            grid.appendChild(packDiv);
+        });
+        section.appendChild(grid);
+        container.appendChild(section);
+    })
+
+    selectVersion(selectedPack);
 });
 window.api.onGameClosed(() => {
     btn.innerText = 'GRAJ';

@@ -13,5 +13,8 @@ contextBridge.exposeInMainWorld('api', {
     closeLogs: () => ipcRenderer.send('close-logs'),
     openLogs: () => ipcRenderer.send('open-logs'),
     pingServer: (ip) => ipcRenderer.invoke('ping-server', ip),
-    onLoadModpacks: (callback) => ipcRenderer.on('load-modpacks', (event, data) => callback(data))
+    onLoadModpacks: (callback) => ipcRenderer.on('load-modpacks', (event, data) => callback(data)),
+    loginMicrosoft: () => ipcRenderer.invoke('login-microsoft'),
+    getAccounts: () => ipcRenderer.invoke('get-accounts'),
+    saveAccounts: (accounts) => ipcRenderer.invoke('save-accounts', accounts)
 });

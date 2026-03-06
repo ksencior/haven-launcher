@@ -10,5 +10,11 @@
         "loader": null,
         "zipName": null,
         "folderName": "game"
+    },
+    "1.7.2 - Vanilla": {
+        "mcVersion": "1.7.2",
+        "loader": null,
+        "zipName": null,
+        "folderName": "game"
     }
 }

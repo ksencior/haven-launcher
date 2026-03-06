@@ -1,6 +1,4 @@
 const btn = document.getElementById('playBtn');
-const input = document.getElementById('nick');
-const skinHead = document.getElementById('skinHead');
 
 const navItems = document.querySelectorAll('.nav-item');
 const pages = document.querySelectorAll('.page');
@@ -8,10 +6,29 @@ const pages = document.querySelectorAll('.page');
 const pBar = document.getElementById('pBar');
 const pBarContainer = document.getElementById('pBarContainer');
 
-// Elementy ekranu ładowania/zamykania
 const loadingScreen = document.getElementById('loading-screen');
 const loadingText = document.getElementById('loading-text');
 const mainLayout = document.querySelector('.main-layout');
+
+const ramSlider = document.getElementById('ramSlider');
+const ramVal = document.getElementById('ramVal');
+const versionSelect = document.getElementById('version-select');
+
+const accountModal = document.getElementById('accountModal');
+const accountsList = document.getElementById('accountsList');
+const modalMainSection = document.getElementById('modalMainSection');
+const modalAddSection = document.getElementById('modalAddSection');
+const offlineNickInput = document.getElementById('offlineNickInput');
+const sidebarNick = document.getElementById('sidebarNick');
+const sidebarSkin = document.getElementById('sidebarSkin');
+
+const pingEl = document.getElementById('serverPing');
+const playersEl = document.getElementById('serverPlayers');
+const serverIp = 'pl04.nesv.pl:25484';
+
+let accounts = [];
+let activeAccount = null;
+let currentPremiumAuth = null;
 
 navItems.forEach(item => {
     item.onclick = () => {
@@ -25,34 +42,16 @@ navItems.forEach(item => {
     }
 });
 
-const ramSlider = document.getElementById('ramSlider');
-const ramVal = document.getElementById('ramVal');
-const versionSelect = document.getElementById('version-select');
-
 ramSlider.oninput = function() {
     ramVal.innerHTML = this.value + "GB";
 }
 
-input.addEventListener('input', (e) => {
-    const nick = e.target.value.trim();
-    if(nick.length > 2) {
-        skinHead.src = `https://minotar.net/helm/${nick}/128.png`;
-    } else {
-        skinHead.src = `https://minotar.net/helm/Steve/128.png`;
-    }
-});
-
 function getCurrentSettings() {
     return {
-        nick: input.value,
         ram: ramSlider.value,
         version: versionSelect.value
     }
 }
-
-const pingEl = document.getElementById('serverPing');
-const playersEl = document.getElementById('serverPlayers');
-const serverIp = 'pl04.nesv.pl:25484';
 
 async function fetchServerStatus() {
     try {
@@ -96,14 +95,180 @@ async function fetchServerStatus() {
 fetchServerStatus();
 setInterval(fetchServerStatus, 10000);
 
+async function initAccounts() {
+    try {
+        accounts = await window.api.getAccounts() || [];
+        activeAccount = accounts.find(acc => acc.active) || accounts[0] || null;
+        updateSidebarUI();
+    } catch (e) { console.error("Błąd ładowania kont:", e); }
+}
+initAccounts();
+
+function updateSidebarUI() {
+    if (activeAccount) {
+        sidebarNick.innerText = activeAccount.name;
+        sidebarSkin.src = `https://minotar.net/helm/${activeAccount.name}/32.png`;
+    } else {
+        sidebarNick.innerText = "Logowanie";
+        sidebarSkin.src = `https://minotar.net/helm/Steve/32.png`;
+    }
+}
+
+document.getElementById('sidebarAccountBtn').onclick = () => {
+    renderAccountsList();
+    accountModal.style.display = 'flex';
+}
+document.getElementById('closeModalBtn').onclick = () => {
+    accountModal.style.display = 'none';
+};
+accountModal.onclick = (e) => {
+    if (e.target === accountModal) {
+        accountModal.style.display = 'none';
+    }
+};
+
+function renderAccountsList() {
+    accountsList.innerHTML = '';
+    accounts.forEach((acc, index) => {
+        const item = document.createElement('div');
+        item.className = `account-item ${acc.active ? 'active' : ''}`;
+        item.innerHTML = `
+            <div class="acc-info" onclick="selectAccount(${index})">
+                <img src="https://minotar.net/helm/${acc.name}/32.png">
+                <div>
+                    <span>${acc.name}</span><br>
+                    <span class="acc-type">${acc.type === 'premium' ? '👑 Premium' : 'Offline'}</span>
+                </div>
+            </div>
+            <button class="acc-delete" onclick="deleteAccount(${index})">×</button>
+        `;
+        item.querySelector('.acc-info').onclick = () => {
+            selectAccount(index);
+            accountModal.style.display = 'none';
+        };
+        item.querySelector('.acc-delete').onclick = (e) => {
+            e.stopPropagation();
+            deleteAccount(index);
+        }
+        accountsList.appendChild(item);
+    });
+}
+
+async function selectAccount(index) {
+    accounts.forEach(a => a.active = false);
+    accounts[index].active = true;
+    activeAccount = accounts[index];
+    await window.api.saveAccounts(accounts);
+    updateSidebarUI();
+    accountModal.style.display = 'none'; // Zamyka modal po wyborze
+}
+
+async function deleteAccount(index) {
+    accounts.splice(index, 1);
+    if (accounts.length > 0) {
+        if (!accounts.some(a => a.active)) accounts[0].active = true;
+    }
+    activeAccount = accounts.find(a => a.active) || null;
+    await window.api.saveAccounts(accounts);
+    updateSidebarUI();
+    renderAccountsList();
+}
+
+window.selectAccount = async (index) => {
+    accounts.forEach(a => a.active = false);
+    accounts[index].active = true;
+    activeAccount = accounts[index];
+    await window.api.saveAccounts(accounts);
+    updateSidebarUI();
+    renderAccountsList();
+};
+
+window.deleteAccount = async (index) => {
+    accounts.splice(index, 1);
+    if (accounts.length > 0) accounts[0].active = true;
+    activeAccount = accounts.find(a => a.active) || null;
+    await window.api.saveAccounts(accounts);
+    updateSidebarUI();
+    renderAccountsList();
+};
+
+document.getElementById('showAddOfflineBtn').onclick = async () => {
+    modalMainSection.style.display = 'none';
+    modalAddSection.style.display = 'block';
+    offlineNickInput.focus();
+};
+document.getElementById('cancelOfflineBtn').onclick = () => {
+    modalAddSection.style.display = 'none';
+    modalMainSection.style.display = 'block';
+    offlineNickInput.value = '';
+};
+document.getElementById('confirmOfflineBtn').onclick = async () => {
+    const nick = offlineNickInput.value.trim();
+    
+    if (nick.length < 3) {
+        alert("Nick musi mieć minimum 3 znaki!");
+        return;
+    }
+
+    // Logika dodawania
+    accounts.forEach(a => a.active = false);
+    accounts.push({ type: 'offline', name: nick, active: true, auth: null });
+    activeAccount = accounts[accounts.length - 1];
+
+    await window.api.saveAccounts(accounts);
+    
+    // Reset UI
+    updateSidebarUI();
+    renderAccountsList();
+    offlineNickInput.value = '';
+    modalAddSection.style.display = 'none';
+    modalMainSection.style.display = 'block';
+    accountModal.style.display = 'none'; // Zamknij modal po sukcesie
+};
+offlineNickInput.onkeydown = (e) => {
+    if (e.key === 'Enter') document.getElementById('confirmOfflineBtn').click();
+};
+
+const closeModal = () => {
+    accountModal.style.display = 'none';
+    // Resetujemy widok do listy, żeby przy następnym otwarciu nie straszył formularz
+    modalAddSection.style.display = 'none';
+    modalMainSection.style.display = 'block';
+};
+
+document.getElementById('closeModalBtn').onclick = closeModal;
+
+document.getElementById('addPremiumBtn').onclick = async () => {
+    const btn = document.getElementById('addPremiumBtn');
+    btn.innerText = "Ładowanie...";
+    
+    const authData = await window.api.loginMicrosoft();
+    btn.innerText = "👑 Premium";
+
+    if (authData) {
+        accounts.forEach(a => a.active = false);
+        accounts.push({ type: 'premium', name: authData.name, active: true, auth: authData });
+        activeAccount = accounts[accounts.length - 1];
+        await window.api.saveAccounts(accounts);
+        updateSidebarUI();
+        renderAccountsList();
+    }
+};
+
 btn.addEventListener('click', () => {
     const settings = getCurrentSettings();
     window.api.saveSettings(settings);
 
+    if (!activeAccount) {
+        accountModal.style.display = 'flex';
+        return;
+    }
+
     const gameOptions = {
-        user: settings.nick,
+        user: activeAccount.name,
         ram: settings.ram,
-        version: settings.version
+        version: settings.version,
+        premiumAuth: activeAccount.type === 'premium' ? activeAccount.auth : null
     }
 
     if (window.api) {
@@ -146,14 +311,9 @@ window.api.onProgress((data) => {
     }
 });
 window.api.onLoadSettings((config) => {
-    input.value = config.nick;
     ramSlider.value = config.ram;
     ramVal.innerHTML = config.ram + "GB";
     versionSelect.value = config.version;
-
-    if (config.nick) {
-        skinHead.src = `https://minotar.net/helm/${config.nick}/128.png`;
-    }
 
     // Ukryj ekran ładowania i pokaż główną zawartość aplikacji
     loadingScreen.style.display = 'none';

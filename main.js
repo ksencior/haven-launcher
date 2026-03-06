@@ -6,16 +6,29 @@ const net =                             require('net');
 const axios =                           require('axios');
 const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
+const { Auth } =                        require('msmc');
 const launcher = new Client();
 
 const configPath    = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'config.json');
 const instancesPath = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'instances');
+const accountsPath  = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'accounts.json');
 
 let logWindow;
 let gameProcess;
 
 const modpacksPath = path.join(__dirname, 'modpacks.json');
 const MODPACKS = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
+
+function getAccounts() {
+    if (fs.existsSync(accountsPath)) {
+        return JSON.parse(fs.readFileSync(accountsPath, 'utf-8')); 
+    }
+    return [];
+}
+
+function saveAccounts(accounts) {
+    fs.writeFileSync(accountsPath, JSON.stringify(accounts, null, 4));
+}
 
 function loadConfig() {
     if (fs.existsSync(configPath)) {
@@ -67,12 +80,34 @@ ipcMain.on('save-settings', (event, data) => {
 
 app.whenReady().then(createWindow);
 
+ipcMain.handle('login-microsoft', async (event) => {
+    try {
+        console.log("Initalizing Microsoft login...");
+        const authManager = new Auth("select_account");
+        const xboxManager = await authManager.launch("electron");
+
+        const token = await xboxManager.getMinecraft();
+
+        return token.mclc();
+    } catch (err) {
+        console.error('Microsoft login error:', err);
+        return null;
+    }
+});
+
 ipcMain.on('launch-game', async (event, data) => {
 
     launcher.removeAllListeners();
     
     console.log("Launching new Minecraft process...");
     const pack = MODPACKS[data.version];
+
+    let finalAuth;
+    if (data.premiumAuth) {
+        finalAuth = data.premiumAuth;
+    } else {
+        finalAuth = Authenticator.getAuth(data.user);
+    }
 
     if (!pack) {
         console.error('Could not find definition for', data.version);
@@ -122,7 +157,7 @@ ipcMain.on('launch-game', async (event, data) => {
     createLogWindow();
 
     let opts = {
-        authorization: Authenticator.getAuth(data.user),
+        authorization: finalAuth,
         root: gameRoot,
         version: launchVersion,
         memory: {
@@ -196,6 +231,14 @@ ipcMain.on('launch-game', async (event, data) => {
         event.reply('game-closed');
         clearInterval(interval);
     })
+});
+
+ipcMain.handle('get-accounts', () => {
+    return getAccounts();
+});
+
+ipcMain.handle('save-accounts', (event, accounts) => {
+    saveAccounts(accounts);
 });
 
 ipcMain.on('window-close', () => {

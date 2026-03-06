@@ -20,11 +20,17 @@
             </div>
         </div>
 
-        <div class="main-layout" style="display: none;">
+        <div class="main-layout" >
             <nav class="sidebar">
-                <div class="nav-item active" data-page="home">🏠</div>
-                <div class="nav-item" data-page="tools">🛠️</div>
-                <div class="nav-item" data-page="settings">⚙️</div>
+                <div class="nav-items-container" style="display: flex; flex-direction: column; gap: 5px;">
+                    <div class="nav-item active" data-page="home">🏠</div>
+                    <div class="nav-item" data-page="tools">🛠️</div>
+                    <div class="nav-item" data-page="settings">⚙️</div>
+                </div>
+                <div class="account-switcher" id="sidebarAccountBtn" title="Zarządzaj kontami">
+                    <img src="https://minotar.net/helm/Steve/32.png" id="sidebarSkin" alt="skin">
+                    <span id="sidebarNick">Brak konta</span>
+                </div>
             </nav>
 
             <main class="content">
@@ -33,9 +39,6 @@
                         <div class="welcome-text">
                             <h2>Gotowy na przygodę?</h2>
                             <p>Wybierz wersję gry, dostosuj RAM i ruszaj do świata Haven.</p>
-                        </div>
-                        <div class="skin-preview">
-                            <img id="skinHead" src="https://minotar.net/helm/Steve/128.png">
                         </div>
                     </div>
                     
@@ -125,9 +128,6 @@
                 </div>
 
                 <div class="action-bar">
-                    <div class="player-info">
-                        <input type="text" id="nick" placeholder="Podaj swój nick..." spellcheck="false">
-                    </div>
                     <div class="launch-controls">
                         <div class="v-selector">
                             <small>Wersja gry</small>
@@ -144,7 +144,31 @@
                 </div>
             </main>
         </div>
-        <div id="loading-screen" class="loading-screen">
+        <div id="accountModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <div id="modalMainSection">
+                    <h3 style="margin-top: 0; margin-bottom: 15px;">Wybierz konto</h3>
+                    <div id="accountsList" class="accounts-list">
+                        </div>
+                    <div class="account-actions" style="margin-top: 15px; display: flex; gap: 10px; justify-content: space-between;">
+                        <button id="showAddOfflineBtn" class="btn-outline">Dodaj Offline</button>
+                        <button id="addPremiumBtn" class="btn-outline" style="border-color: var(--accent); color: var(--accent);">👑 Premium</button>
+                        <button id="closeModalBtn" class="btn-outline">Zamknij</button>
+                    </div>
+                </div>
+
+                <div id="modalAddSection" style="display: none;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px;">Nowe konto Offline</h3>
+                    <input type="text" id="offlineNickInput" placeholder="Twój nick..." 
+                        style="width: 100%; padding: 10px; background: #000; border: 1px solid #333; color: white; border-radius: 5px; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px;">
+                        <button id="confirmOfflineBtn" class="btn-outline" style="flex: 1; background: var(--accent); border: none;">Dodaj</button>
+                        <button id="cancelOfflineBtn" class="btn-outline" style="flex: 1;">Anuluj</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading-screen" class="loading-screen" style="display: none;">
             <img src="icon.png" alt="logo">
             <h2 id="loading-text">Ładowanie...</h2>
         </div>

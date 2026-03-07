@@ -115,6 +115,22 @@
             box-shadow: 0 0 10px rgba(231, 76, 60, 0.4);
         }
 
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            width: 45px;
+            height: 40px;
+            font-size: 18px;
+            transition: 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #e81123;
+            color: white;
+            cursor: pointer;
+        }
+
         /* Scrollbar w stylu Haven */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -139,11 +155,9 @@
             <div class="dot"></div>
             Konsola <span style="color: var(--text-dim); margin-left: 5px;">| HavenLauncher</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="display: flex; align-items: center; gap: 15px; -webkit-app-region: no-drag;">
             <button class="kill-btn" onclick="window.api.killGame()">Zabij instancję</button>
-            <div style="font-size: 10px; color: var(--text-dim); -webkit-app-region: no-drag;">
-                ~ (tylda), aby zamknąć
-            </div>
+            <button class="close-btn" onclick="closeLogWindow()">×</button>
         </div>
     </div>
 
@@ -151,6 +165,15 @@
 
     <script>
         const container = document.getElementById('log-container');
+        let tyldaEnabled;
+
+        function closeLogWindow() {
+            if (window.api && window.api.closeLogs) {
+                window.api.closeLogs();
+            } else {
+                window.close();
+            }
+        }
 
         window.api.onLog((data) => {
             const line = document.createElement('div');
@@ -200,15 +223,15 @@
             }
         });
 
-        // Obsługa ESC
+        window.api.onLoadSettings((config) => {
+            console.log(config);
+            tyldaEnabled = config.tyldaConsole? config.tyldaConsole : false;
+        });
+
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Backquote') {
                 e.preventDefault();
-                if (window.api && window.api.closeLogs) {
-                    window.api.closeLogs();
-                } else {
-                    window.close();
-                }
+                if (tyldaEnabled) closeLogWindow();
             }
         });
     </script>

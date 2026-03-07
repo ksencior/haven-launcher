@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, Notification, shell } = require('electron');
 const path =                            require('path');
 const os =                              require('os');
 const fs =                              require('fs');
@@ -7,11 +7,15 @@ const axios =                           require('axios');
 const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
 const { Auth } =                        require('msmc');
-const launcher = new Client();
+const util =                            require('minecraft-server-util');
 
-const configPath    = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'config.json');
-const instancesPath = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'instances');
-const accountsPath  = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'accounts.json');
+// ---
+
+const launcher = new Client();
+const LAUNCHER_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher');
+const configPath    = path.join(LAUNCHER_PATH, 'config.json');
+const instancesPath = path.join(LAUNCHER_PATH, 'instances');
+const accountsPath  = path.join(LAUNCHER_PATH, 'accounts.json');
 
 let logWindow;
 let gameProcess;
@@ -135,6 +139,9 @@ function createLogWindow() {
         frame: false
     });
     logWindow.loadFile('logs.html');
+    logWindow.webContents.on('did-finish-load', async () => {
+        logWindow.webContents.send('load-settings', loadConfig());
+    })
     logWindow.on('closed', () => {logWindow = null;});
 }
 
@@ -367,30 +374,30 @@ ipcMain.on('open-logs', () => {
 });
 
 ipcMain.handle('ping-server', async (event, host) => {
-    return new Promise((resolve) => {
-        const start = Date.now();
-        const socket = new net.Socket();
-        
-        socket.setTimeout(3000); // Max 3 sekundy czekania
-        
-        socket.on('connect', () => {
-            const ping = Date.now() - start;
-            socket.destroy();
-            resolve(ping);
+    const parts = host.split(':');
+    const ip = parts[0];
+    const port = parts[1] ? parseInt(parts[1]) : 25565;
+
+    try {
+        const res = await util.status(ip, port, {
+            timeout: 5000,
+            enableSRV: true
         });
-        
-        socket.on('timeout', () => {
-            socket.destroy();
-            resolve(null);
-        });
-        
-        socket.on('error', () => {
-            socket.destroy();
-            resolve(null);
-        });
-        
-        socket.connect(25565, host);
-    });
+
+        return {
+            online: true,
+            latency: res.roundTripLatency,
+            players: res.players.online,
+            maxPlayers: res.players.max,
+            version: res.version.name
+        };
+    } catch (error) {
+        return {
+            online: false,
+            latency: null,
+            players: 0
+        }
+    }
 });
 
 ipcMain.on('window-close', (event) => {
@@ -401,6 +408,10 @@ ipcMain.on('window-close', (event) => {
     } else if (win) {
         app.quit();
     }
+});
+
+ipcMain.on('open-local-files', () => {
+    shell.openPath(LAUNCHER_PATH);
 });
 
 app.on('window-all-closed', () => {

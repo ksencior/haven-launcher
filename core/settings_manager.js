@@ -6,7 +6,8 @@ function getCurrentSettings() {
     return {
         ram: ramSlider.value,
         minimizeToTray: trayCheck.checked,
-        version: selectedPack
+        version: selectedPack,
+        tyldaConsole: tyldaCheck.checked
     }
 }
 
@@ -14,6 +15,7 @@ window.api.onLoadSettings((config) => {
     ramSlider.value = config.ram;
     ramVal.innerHTML = config.ram + "GB";
     trayCheck.checked = config.minimizeToTray || false;
+    tyldaCheck.checked = config.tyldaConsole || false;
     if (config.version != null) {
         selectedPack = config.version;
     } else {

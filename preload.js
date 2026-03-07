@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('api', {
     onLoadModpacks: (callback) => ipcRenderer.on('load-modpacks', (event, data) => callback(data)),
     loginMicrosoft: () => ipcRenderer.invoke('login-microsoft'),
     getAccounts: () => ipcRenderer.invoke('get-accounts'),
-    saveAccounts: (accounts) => ipcRenderer.invoke('save-accounts', accounts)
+    saveAccounts: (accounts) => ipcRenderer.invoke('save-accounts', accounts),
+    openLocalFiles: () => ipcRenderer.send('open-local-files')
 });

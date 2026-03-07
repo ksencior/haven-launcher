@@ -109,7 +109,7 @@ function createWindow() {
         frame: false,
         resizable: false
     });
-    win.webContents.openDevTools();
+    //win.webContents.openDevTools();
     win.loadFile('index.html');
 
     win.webContents.on('did-finish-load', async () => {
@@ -127,6 +127,7 @@ function createLogWindow() {
         height: 600,
         title: "HavenLauncher - Konsola",
         backgroundColor: "#000000",
+        icon: path.join(__dirname, 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true
@@ -231,15 +232,15 @@ ipcMain.on('launch-game', async (event, data) => {
         }
     };
 
-    if (data.minimizeToTray) {
-        createTray(win);
-        win.hide();
-        showTrayNotif();
-    }
-
     launcher.launch(opts).then(child => {
         gameProcess = child;
         console.log("Proces gry przypisany pomyslnie:", child.pid);
+
+        if (data.minimizeToTray) {
+            createTray(win);
+            win.hide();
+            showTrayNotif();
+        }
     }).catch(err => {
         if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER/ERR] ${err.message}`);
     });

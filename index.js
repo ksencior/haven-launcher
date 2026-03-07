@@ -1,5 +1,7 @@
 const btn = document.getElementById('playBtn');
 const selectVersionBtn = document.getElementById('selectVersionBtn');
+const welcomeText = document.querySelector('.welcome-text h2');
+const welcomeSubText = document.querySelector('.welcome-text p');
 
 const navItems = document.querySelectorAll('.nav-item');
 const pages = document.querySelectorAll('.page');
@@ -15,7 +17,6 @@ const mainLayout = document.querySelector('.main-layout');
 const ramSlider = document.getElementById('ramSlider');
 const ramVal = document.getElementById('ramVal');
 const trayCheck = document.getElementById('trayCheck');
-
 
 const accountModal = document.getElementById('accountModal');
 const accountsList = document.getElementById('accountsList');
@@ -44,31 +45,6 @@ navItems.forEach(item => {
         document.getElementById(pageId).classList.add('active');
     }
 });
-
-ramSlider.oninput = function() {
-    ramVal.innerHTML = this.value + "GB";
-}
-
-function getCurrentSettings() {
-    return {
-        ram: ramSlider.value,
-        minimizeToTray: trayCheck.checked,
-        version: selectedPack
-    }
-}
-
-function selectVersion(modpack) {
-    selectedPack = modpack;
-    const modpacks = document.querySelectorAll('.modpackOption');
-    modpacks.forEach((pack) = (p) => {
-        p.classList.remove('selected');
-        const name = p.dataset.modpackname;
-        if (name === selectedPack) {
-            p.classList.add('selected')
-        }
-    });
-    selectVersionBtn.innerText = modpack;
-}
 
 async function fetchServerStatus() {
     try {
@@ -110,163 +86,6 @@ async function fetchServerStatus() {
 
 fetchServerStatus();
 setInterval(fetchServerStatus, 10000);
-
-async function initAccounts() {
-    try {
-        accounts = await window.api.getAccounts() || [];
-        activeAccount = accounts.find(acc => acc.active) || accounts[0] || null;
-        updateSidebarUI();
-    } catch (e) { console.error("Błąd ładowania kont:", e); }
-}
-initAccounts();
-
-function updateSidebarUI() {
-    if (activeAccount) {
-        sidebarNick.innerText = activeAccount.name;
-        sidebarSkin.src = `https://minotar.net/helm/${activeAccount.name}/32.png`;
-    } else {
-        sidebarNick.innerText = "Logowanie";
-        sidebarSkin.src = `https://minotar.net/helm/Steve/32.png`;
-    }
-}
-
-document.getElementById('sidebarAccountBtn').onclick = () => {
-    renderAccountsList();
-    accountModal.style.display = 'flex';
-}
-document.getElementById('closeModalBtn').onclick = () => {
-    accountModal.style.display = 'none';
-};
-accountModal.onclick = (e) => {
-    if (e.target === accountModal) {
-        accountModal.style.display = 'none';
-    }
-};
-
-function renderAccountsList() {
-    accountsList.innerHTML = '';
-    accounts.forEach((acc, index) => {
-        const item = document.createElement('div');
-        item.className = `account-item ${acc.active ? 'active' : ''}`;
-        item.innerHTML = `
-            <div class="acc-info" onclick="selectAccount(${index})">
-                <img src="https://minotar.net/helm/${acc.name}/32.png">
-                <div>
-                    <span>${acc.name}</span><br>
-                    <span class="acc-type">${acc.type === 'premium' ? '👑 Premium' : 'Offline'}</span>
-                </div>
-            </div>
-            <button class="acc-delete" onclick="deleteAccount(${index})">×</button>
-        `;
-        item.querySelector('.acc-info').onclick = () => {
-            selectAccount(index);
-            accountModal.style.display = 'none';
-        };
-        item.querySelector('.acc-delete').onclick = (e) => {
-            e.stopPropagation();
-            deleteAccount(index);
-        }
-        accountsList.appendChild(item);
-    });
-}
-
-async function selectAccount(index) {
-    accounts.forEach(a => a.active = false);
-    accounts[index].active = true;
-    activeAccount = accounts[index];
-    await window.api.saveAccounts(accounts);
-    updateSidebarUI();
-    accountModal.style.display = 'none';
-}
-
-async function deleteAccount(index) {
-    accounts.splice(index, 1);
-    if (accounts.length > 0) {
-        if (!accounts.some(a => a.active)) accounts[0].active = true;
-    }
-    activeAccount = accounts.find(a => a.active) || null;
-    await window.api.saveAccounts(accounts);
-    updateSidebarUI();
-    renderAccountsList();
-}
-
-window.selectAccount = async (index) => {
-    accounts.forEach(a => a.active = false);
-    accounts[index].active = true;
-    activeAccount = accounts[index];
-    await window.api.saveAccounts(accounts);
-    updateSidebarUI();
-    renderAccountsList();
-};
-
-window.deleteAccount = async (index) => {
-    accounts.splice(index, 1);
-    if (accounts.length > 0) accounts[0].active = true;
-    activeAccount = accounts.find(a => a.active) || null;
-    await window.api.saveAccounts(accounts);
-    updateSidebarUI();
-    renderAccountsList();
-};
-
-document.getElementById('showAddOfflineBtn').onclick = async () => {
-    modalMainSection.style.display = 'none';
-    modalAddSection.style.display = 'block';
-    offlineNickInput.focus();
-};
-document.getElementById('cancelOfflineBtn').onclick = () => {
-    modalAddSection.style.display = 'none';
-    modalMainSection.style.display = 'block';
-    offlineNickInput.value = '';
-};
-document.getElementById('confirmOfflineBtn').onclick = async () => {
-    const nick = offlineNickInput.value.trim();
-    
-    if (nick.length < 3) {
-        alert("Nick musi mieć minimum 3 znaki!");
-        return;
-    }
-
-    accounts.forEach(a => a.active = false);
-    accounts.push({ type: 'offline', name: nick, active: true, auth: null });
-    activeAccount = accounts[accounts.length - 1];
-
-    await window.api.saveAccounts(accounts);
-
-    updateSidebarUI();
-    renderAccountsList();
-    offlineNickInput.value = '';
-    modalAddSection.style.display = 'none';
-    modalMainSection.style.display = 'block';
-    accountModal.style.display = 'none';
-};
-offlineNickInput.onkeydown = (e) => {
-    if (e.key === 'Enter') document.getElementById('confirmOfflineBtn').click();
-};
-
-const closeModal = () => {
-    accountModal.style.display = 'none';
-    modalAddSection.style.display = 'none';
-    modalMainSection.style.display = 'block';
-};
-
-document.getElementById('closeModalBtn').onclick = closeModal;
-
-document.getElementById('addPremiumBtn').onclick = async () => {
-    const btn = document.getElementById('addPremiumBtn');
-    btn.innerText = "Ładowanie...";
-    
-    const authData = await window.api.loginMicrosoft();
-    btn.innerText = "👑 Premium";
-
-    if (authData) {
-        accounts.forEach(a => a.active = false);
-        accounts.push({ type: 'premium', name: authData.name, active: true, auth: authData });
-        activeAccount = accounts[accounts.length - 1];
-        await window.api.saveAccounts(accounts);
-        updateSidebarUI();
-        renderAccountsList();
-    }
-};
 
 //VERSION BTN
 selectVersionBtn.onclick = () => {
@@ -341,113 +160,7 @@ window.api.onProgress((data) => {
         setTimeout(() => { pBarContainer.style.display = 'none'; }, 3000);
     }
 });
-window.api.onLoadSettings((config) => {
-    ramSlider.value = config.ram;
-    ramVal.innerHTML = config.ram + "GB";
-    trayCheck.checked = config.minimizeToTray || false;
-    if (config.version != null) {
-        selectedPack = config.version;
-    } else {
-        selectedPack = 'HavenPack 1.20.4';
-    }
 
-    loadingScreen.style.display = 'none';
-    mainLayout.style.display = 'flex';
-    actionBar.style.display = 'flex';
-});
-window.api.onLoadModpacks((modpacks) => {
-    const container = document.getElementById('modpacks-container');
-    container.innerHTML = '';
-
-    const groups = {
-        "Polecane": [],
-        "Paczki HavenMine": [],
-        "Vanilla": [],
-        "Inne": []
-    };
-
-    Object.keys(modpacks).forEach(name => {
-        const packData = modpacks[name];
-        const nameLC = name.toLowerCase();
-
-        if (packData.latest) {
-            groups["Polecane"].push({name, data: packData});
-        } else if (nameLC.includes('havenpack')) {
-            groups["Paczki HavenMine"].push({name, data: packData});
-        } else if (nameLC.includes('vanilla')) {
-            groups["Vanilla"].push({name, data: packData});
-        } else {
-            groups["Inne"].push({name, data: packData});
-        }
-    })
-
-    Object.keys(groups).forEach(catName => {
-        const categoryPacks = groups[catName];
-
-        if (categoryPacks.length === 0) return;
-
-        const section = document.createElement('div');
-        section.className = 'category-section'
-
-        if (catName === 'Vanilla' || catName == 'Inne') {
-            section.classList.add('collapsed');
-        }
-
-        const header = document.createElement('div');
-        header.className = 'category-header';
-        header.innerHTML = `
-            <span>${catName} <small style="color: var(--text-dim); font-size: 10px;">(${categoryPacks.length})</small></span> 
-            <span class="category-toggle">▼</span>
-        `;
-        header.onclick = () => {
-            section.classList.toggle('collapsed');
-        };
-        section.appendChild(header);
-
-        const grid = document.createElement('div');
-        grid.className = 'category-grid';
-
-        categoryPacks.forEach(packObj => {
-            const name = packObj.name;
-            const packData = packObj.data;
-
-            const packDiv = document.createElement('div');
-            packDiv.className = 'modpackOption';
-            packDiv.dataset.modpackname = name;
-
-            let icon;
-            let opis;
-            if (name.toLowerCase().includes('havenpack')) {
-                icon = '⭐';
-                opis = 'Modpack specjalnie przygotowany przez administrację HavenMine!';
-            } else if (name.toLowerCase().includes('vanilla')) {
-                icon = '🌍';
-                opis = 'Czysty Minecraft. Dla graczy, którzy nie potrzebują modyfikacji.'
-            } else if (packData.latest) {
-                icon = '🚀';
-                opis = 'Zawsze aktualna wersja Minecrafta. '
-            } else {
-                icon = '📦';
-                opis = 'Nieznana zmodyfikowana paczka modów.';
-            }
-            packDiv.innerHTML = `
-            <div class="tool-card">
-                <div class="tool-icon">${icon}</div>
-                <div class="tool-info">
-                    <h4>${name}</h4>
-                    <p>${opis}</p>
-                </div>
-            </div>
-            `;
-            packDiv.onclick = () => selectVersion(name);
-            grid.appendChild(packDiv);
-        });
-        section.appendChild(grid);
-        container.appendChild(section);
-    })
-
-    selectVersion(selectedPack);
-});
 window.api.onGameClosed(() => {
     btn.innerText = 'GRAJ';
     btn.disabled = false;
@@ -468,19 +181,17 @@ if (searchInput) {
             packs.forEach(pack => {
                 const name = pack.dataset.modpackname.toLowerCase();
                 if (name.includes(query)) {
-                    pack.style.display = 'block'; // lub flex zależnie od CSS
+                    pack.style.display = 'block';
                     visibleCount++;
                 } else {
                     pack.style.display = 'none';
                 }
             });
 
-            // Ukryj całą kategorię, jeśli nie pasuje żadna paczka do wyszukiwania
             if (visibleCount === 0) {
                 section.style.display = 'none';
             } else {
                 section.style.display = 'block';
-                // Jeśli użytkownik czegoś szuka (wpisał tekst), automatycznie rozwiń kategorię
                 if (query.length > 0) {
                     section.classList.remove('collapsed');
                 }

@@ -20,7 +20,7 @@
             </div>
         </div>
 
-        <div class="main-layout" >
+        <div class="main-layout" style="display: none;">
             <nav class="sidebar">
                 <div class="nav-items-container" style="display: flex; flex-direction: column; gap: 5px;">
                     <div class="nav-item active" data-page="home">🏠</div>
@@ -37,18 +37,16 @@
                 <div id="page-home" class="page active">
                     <div class="hero">
                         <div class="welcome-text">
-                            <h2>Gotowy na przygodę?</h2>
-                            <p>Wybierz wersję gry, dostosuj RAM i ruszaj do świata Haven.</p>
+                            <h2>Hej, [nickname]!</h2>
+                            <p>Miło nam, że wróciłeś!</p>
                         </div>
                     </div>
                     
                     <div class="dashboard-grid">
                         <div class="card links-card">
-                            <h3>Lorem ipsum dolor</h3>
-                            <div class="links-grid">
-                                <button class="link-btn discord">🎮 Lorem</button>
-                                <button class="link-btn www">🌐ipsum</button>
-                                <button class="link-btn shop">🛒 dolor</button>
+                            <h3>Popularne mody</h3>
+                            <div class="trending-mods">
+
                             </div>
                         </div>
                         <div class="card server-status">
@@ -147,11 +145,14 @@
                 </div>
             </div>
         </div>
-        <div id="loading-screen" class="loading-screen" style="display: none;">
+        <div id="loading-screen" class="loading-screen" style="display: flex;">
             <img src="icon.png" alt="logo">
             <h2 id="loading-text">Ładowanie...</h2>
         </div>
     </div>
     <script src="index.js"></script>
+    <script src="core/settings_manager.js"></script>
+    <script src="core/accounts_manager.js"></script>
+    <script src="core/modpacks_manager.js"></script>
 </body>
 </html>

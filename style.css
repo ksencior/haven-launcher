@@ -445,11 +445,38 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 1.5px;
+    
+    /* Nowe rzeczy dla klikania */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.category-header:hover {
+    color: #fff;
 }
 
 /* Aby pierwsza kategoria nie miała ogromnego marginesu na górze */
 .category-header:first-child {
     margin-top: 10px;
+}
+
+.category-toggle {
+    transition: transform 0.3s ease;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+/* Co się dzieje jak kategoria jest zwinięta */
+.category-section.collapsed .category-toggle {
+    transform: rotate(-90deg); /* Obraca strzałkę */
+}
+
+.category-section.collapsed .category-grid {
+    display: none; /* Ukrywa zawartość (kratkę z paczkami) */
 }
 
 .category-grid {

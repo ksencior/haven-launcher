@@ -14,6 +14,8 @@ const mainLayout = document.querySelector('.main-layout');
 
 const ramSlider = document.getElementById('ramSlider');
 const ramVal = document.getElementById('ramVal');
+const trayCheck = document.getElementById('trayCheck');
+
 
 const accountModal = document.getElementById('accountModal');
 const accountsList = document.getElementById('accountsList');
@@ -50,6 +52,7 @@ ramSlider.oninput = function() {
 function getCurrentSettings() {
     return {
         ram: ramSlider.value,
+        minimizeToTray: trayCheck.checked,
         version: selectedPack
     }
 }
@@ -294,7 +297,8 @@ btn.addEventListener('click', () => {
         user: activeAccount.name,
         ram: settings.ram,
         version: selectedPack,
-        premiumAuth: activeAccount.type === 'premium' ? activeAccount.auth : null
+        premiumAuth: activeAccount.type === 'premium' ? activeAccount.auth : null,
+        minimizeToTray: settings.minimizeToTray
     }
 
     if (window.api) {
@@ -340,6 +344,7 @@ window.api.onProgress((data) => {
 window.api.onLoadSettings((config) => {
     ramSlider.value = config.ram;
     ramVal.innerHTML = config.ram + "GB";
+    trayCheck.checked = config.minimizeToTray || false;
     if (config.version != null) {
         selectedPack = config.version;
     } else {
@@ -383,9 +388,20 @@ window.api.onLoadModpacks((modpacks) => {
 
         const section = document.createElement('div');
         section.className = 'category-section'
+
+        if (catName === 'Vanilla' || catName == 'Inne') {
+            section.classList.add('collapsed');
+        }
+
         const header = document.createElement('div');
         header.className = 'category-header';
-        header.innerText = catName;
+        header.innerHTML = `
+            <span>${catName} <small style="color: var(--text-dim); font-size: 10px;">(${categoryPacks.length})</small></span> 
+            <span class="category-toggle">▼</span>
+        `;
+        header.onclick = () => {
+            section.classList.toggle('collapsed');
+        };
         section.appendChild(header);
 
         const grid = document.createElement('div');
@@ -436,3 +452,39 @@ window.api.onGameClosed(() => {
     btn.innerText = 'GRAJ';
     btn.disabled = false;
 })
+
+// -- wyszukiwanie paczek --
+const searchInput = document.getElementById('searchInput');
+
+if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const sections = document.querySelectorAll('.category-section');
+
+        sections.forEach(section => {
+            const packs = section.querySelectorAll('.modpackOption');
+            let visibleCount = 0;
+
+            packs.forEach(pack => {
+                const name = pack.dataset.modpackname.toLowerCase();
+                if (name.includes(query)) {
+                    pack.style.display = 'block'; // lub flex zależnie od CSS
+                    visibleCount++;
+                } else {
+                    pack.style.display = 'none';
+                }
+            });
+
+            // Ukryj całą kategorię, jeśli nie pasuje żadna paczka do wyszukiwania
+            if (visibleCount === 0) {
+                section.style.display = 'none';
+            } else {
+                section.style.display = 'block';
+                // Jeśli użytkownik czegoś szuka (wpisał tekst), automatycznie rozwiń kategorię
+                if (query.length > 0) {
+                    section.classList.remove('collapsed');
+                }
+            }
+        });
+    });
+}

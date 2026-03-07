@@ -61,7 +61,10 @@
 
                 <div id="page-tools" class="page">
                     <div class="section-header">
-                        <h2>Wybierz paczke</h2>
+                        <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
+                            <h2>Wybierz paczke</h2>
+                            <input type="text" id="searchInput" placeholder="Szukaj wersji (np. 1.20)..." style="width: 220px; padding: 10px 15px; border-radius: 8px; background: #0a0a0a; border: 1px solid #333; color: white; font-size: 13px;">
+                        </div>
                     </div>
                     <div class="tools-grid" id="modpacks-container">
                         <div class="tool-card modpack">
@@ -94,24 +97,14 @@
 
                         <div class="setting-item">
                             <div class="s-info">
-                                <h4>Automatyczne zamykanie</h4>
-                                <p>Zamknij launcher po uruchomieniu gry</p>
+                                <h4>Ukryj w zasobniku po uruchomieniu</h4>
+                                <p>Launcher zostanie zminimalizowany do ikony obok zegara systemowego w trakcie gry, aby oszczędzać zasoby komputera.</p>
                             </div>
                             <div class="s-control">
                                 <label class="switch">
-                                    <input type="checkbox" checked>
+                                    <input type="checkbox" id="trayCheck">
                                     <span class="slider-round"></span>
                                 </label>
-                            </div>
-                        </div>
-
-                        <div class="setting-item">
-                            <div class="s-info">
-                                <h4>Ścieżka Javy</h4>
-                                <p>Wybierz własny plik javaw.exe</p>
-                            </div>
-                            <div class="s-control">
-                                <button class="btn-outline">Przeglądaj...</button>
                             </div>
                         </div>
                     </div>

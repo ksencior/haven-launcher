@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, Notification } = require('electron');
 const path =                            require('path');
 const os =                              require('os');
 const fs =                              require('fs');
@@ -15,16 +15,45 @@ const accountsPath  = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLaunch
 
 let logWindow;
 let gameProcess;
+let tray = null;
 
 const modpacksPath = path.join(__dirname, 'modpacks.json');
 const MODPACKS = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
-let modpacksWithLatest;
+let ALL_MODPACKS;
 
 function getAccounts() {
     if (fs.existsSync(accountsPath)) {
         return JSON.parse(fs.readFileSync(accountsPath, 'utf-8')); 
     }
     return [];
+}
+
+async function getFullModpackList() {
+    try {
+        const res = await axios.get('https://launchermeta.mojang.com/mc/game/version_manifest.json');
+        const { latest, versions } = res.data;
+
+        const vanillaVersions = {};
+
+        versions.forEach(v => {
+            if (v.type === 'release') {
+                const isLatest = v.id === latest.release;
+                const title = isLatest? `Najnowsza wersja (${v.id})` : `Vanilla - ${v.id}`;
+
+                vanillaVersions[title] = {
+                    "mcVersion": v.id,
+                    "loader": null,
+                    "zipName": null,
+                    "folderName": "game",
+                    "latest": isLatest
+                }
+            }
+        });
+        return Object.assign({}, MODPACKS, vanillaVersions);
+    } catch (err) {
+        console.error("Error while fetching the Minecraft verison:", err);
+        return MODPACKS;
+    }
 }
 
 function saveAccounts(accounts) {
@@ -36,6 +65,35 @@ function loadConfig() {
         return JSON.parse(fs.readFileSync(configPath));
     }
     return {nick: '', ram: 4, version: '1.21.10'};
+}
+
+function createTray(win) {
+    if (tray) return;
+    tray = new Tray(path.join(__dirname, 'icon.png'));
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Otwórz HavenLauncher', click: () => win.show() },
+        { type: 'separator' },
+        { label: 'Zakończ', click: () => {
+            app.isQuitting = true;
+            app.quit();
+        }}
+    ]);
+    tray.setToolTip('HavenLauncher');
+    tray.setContextMenu(contextMenu);
+
+    tray.on('double-click', () => win.show());
+}
+
+function showTrayNotif() {
+    if (Notification.isSupported()) {
+        const notif = new Notification({
+            title: "HavenLauncher",
+            body: 'Gra się uruchamia. Launcher działa teraz w tle.',
+            silent: false,
+            icon: path.join(__dirname, 'icon.png')
+        });
+        notif.show();
+    }
 }
 
 function createWindow() {
@@ -56,28 +114,10 @@ function createWindow() {
 
     win.webContents.on('did-finish-load', async () => {
         win.webContents.send('load-settings', loadConfig());
-        try {
-            const res = await axios.get('https://launchermeta.mojang.com/mc/game/version_manifest.json');
-            const latestVersion = res.data.latest.release;
-
-            modpacksWithLatest = { ...MODPACKS };
-            let title = `Najnowsza wersja (${latestVersion})`
-            const latestVanilla = {
-                [title]: {
-                    "mcVersion": latestVersion,
-                    "loader": null,
-                    "zipName": null,
-                    "folderName": "game",
-                    "latest": true
-                }
-            }
-
-            modpacksWithLatest = Object.assign(latestVanilla, modpacksWithLatest);
-            win.webContents.send('load-modpacks', modpacksWithLatest);
-        } catch (err) {
-            console.error("Error while fetching the latest Minecraft verison:", err);
-            win.webContents.send('load-modpacks', MODPACKS);
-        }
+        getFullModpackList().then(allPacks => {
+            ALL_MODPACKS = allPacks;
+            win.webContents.send('load-modpacks', ALL_MODPACKS);
+        });
     });
 }
 
@@ -122,8 +162,10 @@ ipcMain.on('launch-game', async (event, data) => {
 
     launcher.removeAllListeners();
     
+    const win = BrowserWindow.fromWebContents(event.sender);
+
     console.log("Launching new Minecraft process...");
-    const pack = modpacksWithLatest[data.version];
+    const pack = ALL_MODPACKS[data.version];
 
     let finalAuth;
     if (data.premiumAuth) {
@@ -189,6 +231,12 @@ ipcMain.on('launch-game', async (event, data) => {
         }
     };
 
+    if (data.minimizeToTray) {
+        createTray(win);
+        win.hide();
+        showTrayNotif();
+    }
+
     launcher.launch(opts).then(child => {
         gameProcess = child;
         console.log("Proces gry przypisany pomyslnie:", child.pid);
@@ -253,6 +301,9 @@ ipcMain.on('launch-game', async (event, data) => {
     launcher.on('close', (code) => {
         event.reply('game-closed');
         clearInterval(interval);
+        if (win) {
+            win.show();
+        }
     })
 });
 
@@ -344,7 +395,7 @@ ipcMain.on('window-close', (event) => {
         logWindow.destroy();
         logWindow = null;
     } else if (win) {
-        win.close();
+        app.quit();
     }
 });
 

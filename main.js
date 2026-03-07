@@ -229,7 +229,10 @@ ipcMain.on('launch-game', async (event, data) => {
         memory: {
             max: `${data.ram}G`,
             min: "2G"
-        }
+        },
+        javaPath: "javaw",
+        detached: false,
+        skipAssetsCheck: false
     };
 
     launcher.launch(opts).then(child => {

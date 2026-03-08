@@ -53,10 +53,15 @@ navItems.forEach(item => {
 async function fetchServerStatus() {
     const data = await window.api.pingServer(serverIp);
     if (data.online) {
+        pingEl.classList.remove('good');
+        pingEl.classList.remove('mid');
+        pingEl.classList.remove('bad');
+        playersEl.classList.remove('good');
+        playersEl.classList.remove('bad');
         pingEl.innerHTML = `${data.latency}ms`;
         playersEl.innerText = `${data.players}/${data.maxPlayers}`;
         if (data.latency < 50) pingEl.classList.add('good');
-        else if (data.latency < 100) pingEl.classList.add('mid');
+        else if (data.latnecy >= 50 && data.latency < 100) pingEl.classList.add('mid');
         else pingEl.classList.add('bad');
         playersEl.classList.add('good');
     } else {
@@ -68,7 +73,7 @@ async function fetchServerStatus() {
 }
 
 fetchServerStatus();
-setInterval(fetchServerStatus, 10000);
+let serverInterval = setInterval(fetchServerStatus, 10000);
 
 //VERSION BTN
 selectVersionBtn.onclick = () => {
@@ -106,6 +111,7 @@ btn.addEventListener('click', () => {
     if (window.api) {
         window.api.startMC(gameOptions);
         toggleParticles(false);
+        serverInterval = null;
         btn.innerText = "Uruchomiono.."
         btn.disabled = true;
     } else {
@@ -143,9 +149,9 @@ localFilesBtn.onclick = () => window.api.openLocalFiles();
 
 function toggleParticles(enabled) {
     const container = document.getElementById('particles-js');
-    console.log('Setting particles to', enabled)
     if (enabled) {
         container.style.display = 'block';
+        document.querySelector('.content').style.background = 'transparent';
         if (!particlesInitialized) {
             particlesJS("particles-js", {
                 particles: {
@@ -170,6 +176,7 @@ function toggleParticles(enabled) {
         }
     } else {
         container.style.display = 'none';
+        document.querySelector('.content').style.background = 'radial-gradient(circle at top right, #1a0a1a, #0c0c0c)';
     }
 }
 
@@ -189,6 +196,7 @@ window.api.onGameClosed(() => {
     btn.innerText = 'GRAJ';
     btn.disabled = false;
     toggleParticles(particlesCheck.checked);
+    serverInterval = setInterval(fetchServerStatus, 10000);
 })
 
 // -- wyszukiwanie paczek --

@@ -34,6 +34,7 @@
             </nav>
 
             <main class="content">
+                <div id="particles-js"></div>
                 <div id="page-home" class="page active">
                     <div class="hero">
                         <div class="welcome-text">
@@ -46,7 +47,41 @@
                         <div class="card links-card">
                             <h3>Popularne mody</h3>
                             <div class="trending-mods">
-
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
+                                <div class="mod-card">
+                                    <img src="https://placehold.co/40">
+                                    <span>Modyfikacja</span>
+                                    <button class="btn-small">Zainstaluj</button>
+                                </div>
                             </div>
                         </div>
                         <div class="card server-status">
@@ -128,6 +163,19 @@
                                 <button class="btn-small" id="openLocalFiles">Przeglądaj</button>
                             </div>
                         </div>
+
+                        <div class="setting-item">
+                            <div class="s-info">
+                                <h4>Animowane tło</h4>
+                                <p>Latające cząsteczki w tle launchera.</p>
+                            </div>
+                            <label class="s-control">
+                                <label class="switch">
+                                    <input type="checkbox" id="particlesCheck">
+                                    <span class="slider-round"></span>
+                                </label>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -173,6 +221,7 @@
             <h2 id="loading-text">Ładowanie...</h2>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="index.js"></script>
     <script src="core/settings_manager.js"></script>
     <script src="core/accounts_manager.js"></script>

@@ -19,6 +19,7 @@ const ramVal = document.getElementById('ramVal');
 const trayCheck = document.getElementById('trayCheck');
 const tyldaCheck = document.getElementById('tyldaCheck');
 const localFilesBtn = document.getElementById('openLocalFiles');
+const particlesCheck = document.getElementById('particlesCheck')
 
 const accountModal = document.getElementById('accountModal');
 const accountsList = document.getElementById('accountsList');
@@ -35,6 +36,7 @@ const serverIp = 'pl04.nesv.pl:25484';
 let accounts = [];
 let activeAccount = null;
 let selectedPack = null;
+let particlesInitialized = false;
 
 navItems.forEach(item => {
     item.onclick = () => {
@@ -103,6 +105,7 @@ btn.addEventListener('click', () => {
 
     if (window.api) {
         window.api.startMC(gameOptions);
+        toggleParticles(false);
         btn.innerText = "Uruchomiono.."
         btn.disabled = true;
     } else {
@@ -138,6 +141,38 @@ window.addEventListener('keydown', (e) => {
 });
 localFilesBtn.onclick = () => window.api.openLocalFiles();
 
+function toggleParticles(enabled) {
+    const container = document.getElementById('particles-js');
+    console.log('Setting particles to', enabled)
+    if (enabled) {
+        container.style.display = 'block';
+        if (!particlesInitialized) {
+            particlesJS("particles-js", {
+                particles: {
+                    number: { value: 80, density: { enable: true, value_area: 800 } },
+                    color: { value: "#b929b9" }, // Twój kolor akcentu
+                    shape: { type: "circle" },
+                    opacity: { value: 0.5, random: true },
+                    size: { value: 3, random: true },
+                    line_linked: { 
+                        enable: true, 
+                        distance: 150, 
+                        color: "#b929b9", 
+                        opacity: 0.4, 
+                        width: 1 
+                    },
+                    move: { enable: true, speed: 0.75, direction: "none", random: false }
+                },
+                interactivity: { detect_on: "canvas", events: { onhover: { enable: false } } },
+                retina_detect: true
+            });
+            particlesInitialized = true;
+        }
+    } else {
+        container.style.display = 'none';
+    }
+}
+
 
 window.api.onProgress((data) => {
     pBarContainer.style.display = 'block';
@@ -153,6 +188,7 @@ window.api.onProgress((data) => {
 window.api.onGameClosed(() => {
     btn.innerText = 'GRAJ';
     btn.disabled = false;
+    toggleParticles(particlesCheck.checked);
 })
 
 // -- wyszukiwanie paczek --

@@ -75,14 +75,14 @@ async function loadInstalledMods(instanceFolder) {
         const checkbox = item.querySelector('.mod-toggle-switch');
         checkbox.onchange = async () => {
             const res = await window.api.toggleMod({
-                instanceName: instanceName,
+                instanceFolder: instanceFolder,
                 filename: mod.filename,
                 state: checkbox.checked
             });
 
             if (res.success) {
-                // Odświeżamy listę, aby zaktualizować nazwy plików w pamięci
-                loadInstalledMods(instanceName);
+                loadInstalledMods(instanceFolder);
+                window.scrollTo(item);
             }
         };
 
@@ -149,8 +149,7 @@ window.api.onLoadModpacks((modpacks) => {
             const packDiv = document.createElement('div');
             packDiv.className = 'modpackOption';
             packDiv.dataset.modpackname = name;
-            
-            if (packData.isCustom) packDiv.dataset.id = packData.id;
+            packDiv.dataset.id = packData.id? packData.id : '';
 
             let icon;
             let opis;
@@ -371,9 +370,44 @@ function renderModsList(mods) {
                     <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads}</span>
                 </div>
                 <p style="font-size: 11px; color: gray;">${mod.summary.substring(0, 60)}...</p>
-                <button class="btn-install" data-modid="${mod.id}" style="margin-top:5px; padding:4px 8px; font-size:10px;">Zainstaluj</button>
+                <button class="btn-install" id="install-btn-${mod.id}" style="margin-top:5px; padding:4px 8px; font-size:10px;">Zainstaluj</button>
             </div>
         `;
         modsContainer.appendChild(modCard);
+
+        const installBtn = modCard.querySelector(`#install-btn-${mod.id}`);
+        installBtn.onclick = async () => {
+            installBtn.innerText = 'Pobieranie...';
+            installBtn.disabled = true;
+            installBtn.style.opacity = '0.5';
+
+            const data = {
+                modId: mod.id,
+                version: currentEditingPack.mcVersion,
+                loader: currentEditingPack.loader,
+                instanceFolder: currentEditingPack.folderName
+            };
+
+            const res = await window.api.installMod(data);
+            if (res.success) {
+                installBtn.innerText = 'Zainstalowano ✔️';
+                installBtn.style.background = '#2ecc71';
+                installBtn.style.borderColor = '#2ecc71';
+                installBtn.style.opacity = '1';
+
+                if (typeof loadInstalledMods === 'function') {
+                    loadInstalledMods(currentEditingPack.folderName);
+                }
+            } else {
+                installBtn.innerText = 'Błąd!';
+                installBtn.style.background = '#e74c3c';
+                installBtn.style.opacity = '1';
+                setTimeout(() => {
+                    installBtn.innerText = 'Spróbuj ponownie';
+                    installBtn.disabled = false;
+                    installBtn.style.background = '';
+                }, 2000);
+            }
+        }
     })
 }

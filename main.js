@@ -63,6 +63,7 @@ async function getFullModpackList() {
         const { latest, versions } = res.data;
 
         const vanillaVersions = {};
+        const userPacks = {};
 
         versions.forEach(v => {
             if (v.type === 'release') {
@@ -78,7 +79,18 @@ async function getFullModpackList() {
                 }
             }
         });
-        return Object.assign({}, MODPACKS, vanillaVersions, USER_MODPACKS);
+
+        USER_MODPACKS.forEach(uPack => {
+            userPacks[uPack.name] = {
+                "mcVersion": uPack.mcVersion,
+                "id": uPack.id,
+                "loader": uPack.loader,
+                "zipName": null,
+                "folderName": uPack.folderName,
+                "isCustom": true
+            }
+        });
+        return Object.assign({}, MODPACKS, vanillaVersions, userPacks);
     } catch (err) {
         console.error("Error while fetching the Minecraft verison:", err);
         return MODPACKS;
@@ -203,6 +215,46 @@ function createLogWindow() {
     logWindow.on('closed', () => {logWindow = null;});
 }
 
+async function getFabricProfile(mcVersion) {
+    try {
+        const loaderUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`;
+        const loaders = (await axios.get(loaderUrl)).data;
+        if (!loaders || loaders.length === 0) return null;
+
+        const latestLoader = loaders[0].loader.version;
+
+        const profileUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}/${latestLoader}/profile/json`;
+        const profileResponse = await axios.get(profileUrl);
+
+        return profileResponse.data;
+    } catch (err) {
+        console.error("Błąd pobierania profilu Fabric:", err);
+        return null;
+    }
+}
+
+async function setupLoader(version, loaderType, instanceFolder, event) {
+    if (!loaderType || loaderType === 'vanilla') return true;
+
+    try {
+        if (loaderType === 'fabric') {
+            return await setupFabric(version, instanceFolder, event);
+        } else if (loaderType === 'forge') {
+            return await setupForge(version, instanceFolder, event);
+        }
+    } catch (err) {
+        console.error(err);
+        return false;
+    }
+}
+
+async function setupFabric(version, instanceFolder, event) {
+    
+}
+async function setupForge(version, instanceFolder, event) {
+    
+}
+
 ipcMain.on('save-settings', (event, data) => {
     fs.writeFileSync(configPath, JSON.stringify(data));
 })
@@ -231,7 +283,8 @@ ipcMain.on('launch-game', async (event, data) => {
     const win = BrowserWindow.fromWebContents(event.sender);
 
     console.log("Launching new Minecraft process...");
-    const pack = ALL_MODPACKS[data.version];
+    const packName = data.version;
+    const pack = ALL_MODPACKS[packName];
 
     let finalAuth;
     if (data.premiumAuth) {
@@ -243,6 +296,10 @@ ipcMain.on('launch-game', async (event, data) => {
     if (!pack) {
         console.error('Could not find definition for', data.version);
         return;
+    }
+    let gameLoader;
+    if (pack.loader === 'fabric') {
+        
     }
 
     let gameRoot;
@@ -470,6 +527,11 @@ ipcMain.handle('create-custom-instance', async (event, packData) => {
     }
 
     const folderName = packData.name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+    const instanceFolder = path.join(instancesPath, folderName);
+    // const loaderSuccess = await setupLoader(packData.version, packData.loader, instanceFolder, event);
+    // if (!loaderSuccess) {
+    //     return null;
+    // }
     const newInstance = {
         id: folderName,
         name: packData.name,
@@ -482,8 +544,6 @@ ipcMain.handle('create-custom-instance', async (event, packData) => {
     customInstances.push(newInstance);
 
     fs.writeFileSync(userPacksPath, JSON.stringify(customInstances, null, 2));
-
-    const instanceFolder = path.join(instancesPath, folderName);
     const modsFolder = path.join(instanceFolder, 'mods');
     fs.mkdirSync(modsFolder, {recursive: true} );
 
@@ -609,6 +669,44 @@ ipcMain.handle('toggle-mod', async (event, { instanceFolder, filename, state }) 
     }
 });
 
+ipcMain.handle('install-mod', async (event, { modId, version, loader, instanceFolder }) => {
+    try {
+        const loaderType = loader === 'fabric' ? 4 : (loader=== 'forge' ? 1 : 0);
+
+        const res = await axios.get(`https://api.curseforge.com/v1/mods/${modId}/files`, {
+            params: {
+                gameVersion: version,
+                modLoaderType: loaderType
+            },
+            headers: { 'x-api-key': CF_API_KEY }
+        });
+
+        const files = res.data.data;
+        if (!files || files.length === 0) {
+            return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+        }
+
+        const targetFile = files[0];
+        let downloadUrl = targetFile.downloadUrl;
+
+        if (!downloadUrl) {
+            const fileIdStr = targetFile.id.toString();
+            const part1 = fileIdStr.slice(0, 4);
+            const part2 = fileIdStr.slice(4);
+            downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${targetFile.fileName}`;
+        }
+
+        const modFilePath = path.join(instancesPath, instanceFolder, 'mods', targetFile.fileName);
+
+        await downloadFile(downloadUrl, modFilePath, event);
+
+        return { success: true, fileName: targetFile.fileName };
+    } catch (err) {
+        console.error("Błąd podczas instalacji moda:", err);
+        return { success: false, error: 'Błąd pobierania.' };
+    }
+});
+
 ipcMain.on('window-close', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win === logWindow) {
@@ -655,15 +753,20 @@ async function downloadFile(url, outputPath, event) {
     response.data.on('data', (chunk) => {
         downloadedBytes += chunk.length;
 
-        event.reply('download-progress', {
-            task: downloadedBytes,
-            total: totalBytes
-        });
+        if (event && event.sender) {
+            event.sender.send('download-progress', {
+                task: downloadedBytes,
+                total: totalBytes
+            });
+        }
     });
 
     return new Promise((resolve, reject) => {
         response.data.pipe(writer);
         writer.on('finish', resolve);
-        writer.on('error', reject);
+        writer.on('error', (err) => {
+            fs.unlink(outputPath, () => reject(err));
+        });
+        response.data.on('error', reject);
     });
 }

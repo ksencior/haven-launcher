@@ -40,7 +40,7 @@ let tray = null;
 
 const modpacksPath  = path.join(__dirname, 'modpacks.json');
 const MODPACKS      = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
-const USER_MODPACKS = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
+let USER_MODPACKS;
 let ALL_MODPACKS;
 
 function getAccounts() {
@@ -52,6 +52,12 @@ function getAccounts() {
 
 async function getFullModpackList() {
     try {
+        if (!fs.existsSync(userPacksPath)) {
+            USER_MODPACKS = [];
+        } else {
+            USER_MODPACKS = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
+        }
+
         const res = await axios.get('https://launchermeta.mojang.com/mc/game/version_manifest.json');
         const { latest, versions } = res.data;
 
@@ -518,6 +524,11 @@ ipcMain.on('window-close', (event) => {
     } else if (win) {
         app.quit();
     }
+});
+
+ipcMain.on('refresh-modpacks', async (event) => {
+    const updatedModpacks = await getFullModpackList();
+    event.reply('load-modpacks', updatedModpacks);
 });
 
 ipcMain.on('open-local-files', () => {

@@ -29,11 +29,6 @@ const offlineNickInput = document.getElementById('offlineNickInput');
 const sidebarNick = document.getElementById('sidebarNick');
 const sidebarSkin = document.getElementById('sidebarSkin');
 
-const modpacksModal = document.getElementById('createPackModal');
-const modpacksBtnOpen = document.getElementById('createCustomPackBtn');
-const modpacksBtnClose = document.getElementById('closeModpackModalBtn');
-const modpacksBtnConfirm = document.getElementById('confirmCreatePackBtn');
-
 const pingEl = document.getElementById('serverPing');
 const playersEl = document.getElementById('serverPlayers');
 const serverIp = 'pl04.nesv.pl:25484';

@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('api', {
     openLocalFiles: () => ipcRenderer.send('open-local-files'),
     getPopularMods: () => ipcRenderer.invoke('get-popular-mods'),
     createCustomInstance: (data) => ipcRenderer.invoke('create-custom-instance', data),
-    //refreshModpacks: () => ipcRenderer.send('refresh-modpacks')
+    refreshModpacks: () => ipcRenderer.send('refresh-modpacks'),
     onLoadingStatus: (callback) => ipcRenderer.on('loading-status', (event, data) => callback(data)),
     onAppReady: (callback) => ipcRenderer.on('app-ready', () => callback()),
     getSystemRam: () => ipcRenderer.invoke('get-system-ram')

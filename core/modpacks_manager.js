@@ -1,3 +1,12 @@
+const createInstancePage = document.getElementById('create-instance-page');
+const modpacksBtnOpen = document.getElementById('createCustomPackBtn');
+const modpacksBtnClose = document.getElementById('backToModpacksBtn');
+const modpacksBtnConfirm = document.getElementById('confirmCreateInstanceBtn');
+const modpacksVersionSelect = document.getElementById('newInstanceVersion');
+const modpacksLoaderSelect = document.getElementById('newInstanceLoader');
+const modpacksLoaderGroup = document.getElementById('loaderGroup');
+const modpacksLoaderHint = document.getElementById('loaderHint');
+
 function selectVersion(modpack) {
     selectedPack = modpack;
     const modpacks = document.querySelectorAll('.modpackOption');
@@ -105,29 +114,87 @@ window.api.onLoadModpacks((modpacks) => {
     selectVersion(selectedPack);
 });
 
-if (modpacksBtnOpen) modpacksBtnOpen.onclick = () => modpacksModal.style.display = 'flex';
-if (modpacksBtnClose) modpacksBtnClose.onclick = () => modpacksModal.style.display = 'none';
+if (modpacksBtnOpen) {
+    modpacksBtnOpen.onclick = () => {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        createInstancePage.classList.add('active');
 
-if (modpacksBtnConfirm) {
-    modpacksBtnConfirm.onclick = async () => {
-        const name = document.getElementById('customPackName').value;
-        const version = document.getElementById('customPackVersion').value;
-        const loader = document.getElementById('customPackLoader').value;
+        loadMinecraftVersions();
+    }
+}
 
-        if (!name) {
-            return;
-        }
+modpacksBtnClose.onclick = () => {
+    document.querySelector('.nav-item.active').click();
+}
 
-        modpacksBtnConfirm.innerText = 'Tworzenie...';
+async function loadMinecraftVersions() {
+    if (modpacksVersionSelect.options.length > 1) return;
 
-        const res = await window.api.createCustomInstance({ name, version, loader });
+    try {
+        const res = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json');
+        const data = await res.json();
+        const releases = data.versions.filter(v => v.type === 'release');
 
-        if (res) {
-            modpacksModal.style.display = 'none';
-            modpacksBtnConfirm.innerText = 'Utwórz pusty profil';
-            document.getElementById('customPackName').value = '';
+        modpacksVersionSelect.innerHTML = '<option value="" disabled selected>Wybierz wersję z listy...</option>';
+        releases.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.id;
+            opt.innerText = v.id;
+            modpacksVersionSelect.appendChild(opt);
+        });
+    } catch (err) {
+        modpacksVersionSelect.innerHTML = '<option value="">Błąd ładowania list wersji</option>';
+        console.error("Nie udało się pobrać wersji:", err);
+    }
+}
 
-            //window.api.refreshModpacks();
-        }
+modpacksVersionSelect.onchange = () => {
+    const version = modpacksVersionSelect.value;
+    modpacksLoaderGroup.style.opacity = '1';
+    modpacksLoaderGroup.style.pointerEvents = 'all';
+    modpacksLoaderHint.style.display = 'none';
+
+    modpacksLoaderSelect.innerHTML = '<option value="vanilla">Vanilla (Brak modów)</option>';
+
+    const parts = version.split('.');
+    const minor = parseInt(parts[1]);
+
+    if (minor >= 14) {
+        modpacksLoaderSelect.innerHTML += '<option value="fabric">Fabric</option>';
+    }
+
+    if (minor >= 7) {
+        modpacksLoaderSelect.innerHTML += '<option value="forge">Forge</option>';
+    }
+}
+
+modpacksBtnConfirm.onclick = async () => {
+    const name = document.getElementById('newInstanceName').value;
+    const version = modpacksVersionSelect.value;
+    const loader = modpacksLoaderSelect.value;
+
+    if (!name || !version) return;
+
+    modpacksBtnConfirm.innerText = 'Tworzenie...';
+    modpacksBtnConfirm.disabled = true;
+    const res = await window.api.createCustomInstance( { name, version, loader } );
+
+    if (res) {
+        window.api.refreshModpacks();
+        modpacksBtnConfirm.innerText = 'Gotowe!'
+        setTimeout(() => {
+            modpacksBtnConfirm.disabled = false;
+            modpacksBtnConfirm.innerText = 'Utwórz instancję';
+            document.getElementById('newInstanceName').value = '';
+            modpacksBtnClose.click();
+        }, 1000);
+    } else {
+        modpacksBtnConfirm.innerText = 'Wystąpił błąd.'
+        setTimeout(() => {
+            modpacksBtnConfirm.disabled = false;
+            modpacksBtnConfirm.innerText = 'Utwórz instancję';
+            document.getElementById('newInstanceName').value = '';
+            modpacksBtnClose.click();
+        }, 1000);
     }
 }

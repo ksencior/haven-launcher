@@ -46,42 +46,14 @@
                     <div class="dashboard-grid">
                         <div class="card links-card">
                             <h3>Popularne mody</h3>
-                            <div class="trending-mods">
+                            <div class="trending-mods" id="popularModsContainer">
                                 <div class="mod-card">
                                     <img src="https://placehold.co/40">
                                     <span>Modyfikacja</span>
+                                    <small>⬇ 4.2M pobrań</small>
                                     <button class="btn-small">Zainstaluj</button>
                                 </div>
-                                <div class="mod-card">
-                                    <img src="https://placehold.co/40">
-                                    <span>Modyfikacja</span>
-                                    <button class="btn-small">Zainstaluj</button>
-                                </div>
-                                <div class="mod-card">
-                                    <img src="https://placehold.co/40">
-                                    <span>Modyfikacja</span>
-                                    <button class="btn-small">Zainstaluj</button>
-                                </div>
-                                <div class="mod-card">
-                                    <img src="https://placehold.co/40">
-                                    <span>Modyfikacja</span>
-                                    <button class="btn-small">Zainstaluj</button>
-                                </div>
-                                <div class="mod-card">
-                                    <img src="https://placehold.co/40">
-                                    <span>Modyfikacja</span>
-                                    <button class="btn-small">Zainstaluj</button>
-                                </div>
-                                <div class="mod-card">
-                                    <img src="https://placehold.co/40">
-                                    <span>Modyfikacja</span>
-                                    <button class="btn-small">Zainstaluj</button>
-                                </div>
-                                <div class="mod-card">
-                                    <img src="https://placehold.co/40">
-                                    <span>Modyfikacja</span>
-                                    <button class="btn-small">Zainstaluj</button>
-                                </div>
+                                <p style="color: var(--text-dim);">Ładowanie...</p>
                             </div>
                         </div>
                         <div class="card server-status">
@@ -95,7 +67,7 @@
                 <div id="page-tools" class="page">
                     <div class="section-header">
                         <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
-                            <h2>Wybierz paczke</h2>
+                            <h2>Wybierz paczke <button id="createCustomPackBtn" class="btn-create" style="margin-left: 15px">+</button></h2>
                             <input type="text" id="searchInput" placeholder="Szukaj wersji (np. 1.20)..." style="width: 220px; padding: 10px 15px; border-radius: 8px; background: #0a0a0a; border: 1px solid #333; color: white; font-size: 13px;">
                         </div>
                     </div>
@@ -214,6 +186,40 @@
                         <button id="cancelOfflineBtn" class="btn-outline" style="flex: 1;">Anuluj</button>
                     </div>
                 </div>
+            </div>
+        </div>
+        <div id="createPackModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3>Stwórz własną paczkę</h3>
+                    <button id="closeModpackModalBtn" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">×</button>
+                </div>
+                
+                <div class="s-control-row" style="margin-bottom: 10px; display: flex; flex-direction: column; align-items: flex-start;">
+                    <label style="margin-bottom: 5px; color: var(--text-dim);">Nazwa paczki:</label>
+                    <input type="text" id="customPackName" placeholder="np. Moja super paczka" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #333; background: #111; color: white;">
+                </div>
+
+                <div class="s-control-row" style="margin-bottom: 10px; display: flex; flex-direction: column; align-items: flex-start;">
+                    <label style="margin-bottom: 5px; color: var(--text-dim);">Wersja Minecraft:</label>
+                    <select id="customPackVersion" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #333; background: #111; color: white;">
+                        <option value="1.20.4">1.20.4</option>
+                        <option value="1.19.4">1.19.4</option>
+                        <option value="1.18.2">1.18.2</option>
+                        <option value="1.16.5">1.16.5</option>
+                    </select>
+                </div>
+
+                <div class="s-control-row" style="margin-bottom: 20px; display: flex; flex-direction: column; align-items: flex-start;">
+                    <label style="margin-bottom: 5px; color: var(--text-dim);">Modloader:</label>
+                    <select id="customPackLoader" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #333; background: #111; color: white;">
+                        <option value="fabric">Fabric</option>
+                        <option value="forge">Forge</option>
+                        <option value="vanilla">Brak (Vanilla)</option>
+                    </select>
+                </div>
+
+                <button id="confirmCreatePackBtn" class="btn" style="width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer;">Utwórz pusty profil</button>
             </div>
         </div>
         <div id="loading-screen" class="loading-screen" style="display: flex;">

@@ -8,6 +8,7 @@ const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
 const { Auth } =                        require('msmc');
 const util =                            require('minecraft-server-util');
+require('dotenv').config();
 
 // ---
 
@@ -16,13 +17,15 @@ const LAUNCHER_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLaunch
 const configPath    = path.join(LAUNCHER_PATH, 'config.json');
 const instancesPath = path.join(LAUNCHER_PATH, 'instances');
 const accountsPath  = path.join(LAUNCHER_PATH, 'accounts.json');
+const userPacksPath = path.join(LAUNCHER_PATH, 'custom_instances.json');
 
 let logWindow;
 let gameProcess;
 let tray = null;
 
-const modpacksPath = path.join(__dirname, 'modpacks.json');
-const MODPACKS = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
+const modpacksPath  = path.join(__dirname, 'modpacks.json');
+const MODPACKS      = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
+const USER_MODPACKS = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
 let ALL_MODPACKS;
 
 function getAccounts() {
@@ -53,7 +56,7 @@ async function getFullModpackList() {
                 }
             }
         });
-        return Object.assign({}, MODPACKS, vanillaVersions);
+        return Object.assign({}, MODPACKS, vanillaVersions, USER_MODPACKS);
     } catch (err) {
         console.error("Error while fetching the Minecraft verison:", err);
         return MODPACKS;
@@ -113,7 +116,7 @@ function createWindow() {
         frame: false,
         resizable: false
     });
-    //win.webContents.openDevTools();
+    win.webContents.openDevTools();
     win.loadFile('index.html');
 
     win.webContents.on('did-finish-load', async () => {
@@ -373,6 +376,57 @@ ipcMain.on('open-logs', () => {
     }
 });
 
+ipcMain.handle('get-popular-mods', async () => {
+    try {
+        const CF_API_KEY = process.env.CF_API_KEY;
+
+        const res = await axios.get('https://api.curseforge.com/v1/mods/search', {
+            headers: {
+                'Accept': 'application/json',
+                'x-api-key': CF_API_KEY
+            },
+            params: {
+                gameId: 432,
+                classId: 6,
+                sortField: 2,
+                sortOrder: 'desc',
+                pageSize: 6
+            }
+        });
+
+        return res.data.data;
+    } catch (error) {
+        console.error('Error while fetching CF mods:', error);
+        return [];
+    }
+});
+
+ipcMain.handle('create-custom-instance', async (event, packData) => {
+    let customInstances = [];
+    if (fs.existsSync(userPacksPath)) {
+        customInstances = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
+    }
+
+    const folderName = packData.name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+    const newInstance = {
+        id: folderName,
+        name: packData.name,
+        mcVersion: packData.version,
+        loader: packData.loader !== 'vanilla' ? packData.loader : null,
+        folderName: folderName,
+        isCustom: true
+    };
+
+    customInstances.push(newInstance);
+
+    fs.writeFileSync(userPacksPath, JSON.stringify(customInstances, null, 2));
+
+    const instanceFolder = path.join(instancesPath, folderName);
+    const modsFolder = path.join(instanceFolder, 'mods');
+    fs.mkdirSync(modsFolder, {recursive: true} );
+
+    return newInstance;
+});
 ipcMain.handle('ping-server', async (event, host) => {
     const parts = host.split(':');
     const ip = parts[0];

@@ -64,7 +64,7 @@ window.api.onLoadModpacks((modpacks) => {
         grid.className = 'category-grid';
 
         categoryPacks.forEach(packObj => {
-            const name = packObj.name;
+            const name = packObj.data.name ? packObj.data.name : packObj.name;
             const packData = packObj.data;
 
             const packDiv = document.createElement('div');
@@ -104,3 +104,30 @@ window.api.onLoadModpacks((modpacks) => {
 
     selectVersion(selectedPack);
 });
+
+if (modpacksBtnOpen) modpacksBtnOpen.onclick = () => modpacksModal.style.display = 'flex';
+if (modpacksBtnClose) modpacksBtnClose.onclick = () => modpacksModal.style.display = 'none';
+
+if (modpacksBtnConfirm) {
+    modpacksBtnConfirm.onclick = async () => {
+        const name = document.getElementById('customPackName').value;
+        const version = document.getElementById('customPackVersion').value;
+        const loader = document.getElementById('customPackLoader').value;
+
+        if (!name) {
+            return;
+        }
+
+        modpacksBtnConfirm.innerText = 'Tworzenie...';
+
+        const res = await window.api.createCustomInstance({ name, version, loader });
+
+        if (res) {
+            modpacksModal.style.display = 'none';
+            modpacksBtnConfirm.innerText = 'Utwórz pusty profil';
+            document.getElementById('customPackName').value = '';
+
+            //window.api.refreshModpacks();
+        }
+    }
+}

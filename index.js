@@ -29,6 +29,11 @@ const offlineNickInput = document.getElementById('offlineNickInput');
 const sidebarNick = document.getElementById('sidebarNick');
 const sidebarSkin = document.getElementById('sidebarSkin');
 
+const modpacksModal = document.getElementById('createPackModal');
+const modpacksBtnOpen = document.getElementById('createCustomPackBtn');
+const modpacksBtnClose = document.getElementById('closeModpackModalBtn');
+const modpacksBtnConfirm = document.getElementById('confirmCreatePackBtn');
+
 const pingEl = document.getElementById('serverPing');
 const playersEl = document.getElementById('serverPlayers');
 const serverIp = 'pl04.nesv.pl:25484';
@@ -180,6 +185,40 @@ function toggleParticles(enabled) {
     }
 }
 
+async function renderPopularMods() {
+    const container = document.getElementById('popularModsContainer');
+
+    if (!container) return;
+
+    const mods = await window.api.getPopularMods();
+
+    if (!mods || mods.length === 0) {
+        if (!mods) container.innerHTML = '<p style="color: var(--text-dim);">Wystąpił błąd.</p>';
+        console.error('Błąd wczytywania modyfikacji (brak zwrotnego info)');
+        return;
+    }
+
+    container.innerHTML = '';
+
+    mods.forEach(mod => {
+        const card = document.createElement('div');
+        card.className = 'mod-card';
+
+        const iconUrl = mod.logo ? mod.logo.thumbnailUrl : 'icon.png';
+        const downloads = (mod.downloadCount / 1000000).toFixed(1);
+        const name = (mod.name.length >= 15) ? mod.name.substring(0, 15) + '..' : mod.name;
+        card.innerHTML = `
+            <img src="${iconUrl}" alt="${name}">
+            <div class="mod-info">
+                <span>${name}</span>
+                <small>⬇ ${downloads}M</small>
+                <button class="btn-small">Zainstaluj</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+renderPopularMods();
 
 window.api.onProgress((data) => {
     pBarContainer.style.display = 'block';

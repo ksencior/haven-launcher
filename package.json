@@ -13,6 +13,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",
+    "dotenv": "^17.3.1",
     "minecraft-launcher-core": "^3.18.2",
     "minecraft-server-util": "^5.4.4",
     "msmc": "^5.0.5"

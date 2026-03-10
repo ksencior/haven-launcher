@@ -17,5 +17,8 @@ contextBridge.exposeInMainWorld('api', {
     loginMicrosoft: () => ipcRenderer.invoke('login-microsoft'),
     getAccounts: () => ipcRenderer.invoke('get-accounts'),
     saveAccounts: (accounts) => ipcRenderer.invoke('save-accounts', accounts),
-    openLocalFiles: () => ipcRenderer.send('open-local-files')
+    openLocalFiles: () => ipcRenderer.send('open-local-files'),
+    getPopularMods: () => ipcRenderer.invoke('get-popular-mods'),
+    createCustomInstance: (data) => ipcRenderer.invoke('create-custom-instance', data),
+    //refreshModpacks: () => ipcRenderer.send('refresh-modpacks')
 });

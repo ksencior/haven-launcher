@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=HavenLauncher
+Exec=/home/ksencior/work/haven-launcher/node_modules/.bin/electron .
+Icon=/home/ksencior/work/haven-launcher/icon.png
+Type=Application
+Categories=Game;

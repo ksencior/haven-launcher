@@ -652,6 +652,22 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     justify-content: center;
 }
 
+.installed-mod-item {
+    transition: 0.2s;
+}
+
+.installed-mod-item:hover {
+    background: #222 !important;
+}
+
+/* Prosty switch zamiast zwykłego checkboxa */
+.mod-toggle-switch {
+    cursor: pointer;
+    accent-color: var(--accent);
+    width: 18px;
+    height: 18px;
+}
+
 .link-btn.discord:hover { border-left: 3px solid #5865F2; }
 .link-btn.www:hover { border-left: 3px solid #2ecc71; }
 .link-btn.shop:hover { border-left: 3px solid #e1b12c; }

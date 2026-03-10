@@ -567,6 +567,48 @@ ipcMain.handle('delete-modpack', async (event, packId) => {
     }
 });
 
+ipcMain.handle('get-installed-mods', async (event, instanceFolder) => {
+    const modsPath = path.join(instancesPath, instanceFolder, 'mods');
+    if (!fs.existsSync(modsPath)) return [];
+
+    try {
+        const files = fs.readdirSync(modsPath);
+        return files.filter(file => file.endsWith('.jar') || file.endsWith('.jar.disabled'))
+        .map(file => ({
+            name: file.replace('.disabled', ''),
+            filename: file,
+            enabled: !file.endsWith('.disabled')
+        }));
+    } catch (err) {
+        console.error(err);
+        return [];
+    }
+});
+
+ipcMain.handle('toggle-mod', async (event, { instanceFolder, filename, state }) => {
+    const modsPath = path.join(instancesPath, instanceFolder, 'mods');
+    const oldPath = path.join(modsPath, filename);
+
+    let newFilename = filename;
+    if (state === false && !filename.endsWith('.disabled')) {
+        newFilename = filename + '.disabled';
+    } else if (state === true && filename.endsWith('.disabled')) {
+        newFilename = filename.replace('.disabled', '');
+    }
+
+    const newPath = path.join(modsPath, newFilename);
+
+    try {
+        if (oldPath !== newPath) {
+            fs.renameSync(oldPath, newPath);
+        }
+        return { success: true, newFilename };
+    } catch (err) {
+        console.error(err);
+        return { success: false };
+    }
+});
+
 ipcMain.on('window-close', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win === logWindow) {

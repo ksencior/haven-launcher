@@ -25,5 +25,7 @@ contextBridge.exposeInMainWorld('api', {
     onAppReady: (callback) => ipcRenderer.on('app-ready', () => callback()),
     getSystemRam: () => ipcRenderer.invoke('get-system-ram'),
     searchMods: (data) => ipcRenderer.invoke('search-mods', data),
-    deleteModpack: (packId) => ipcRenderer.invoke('delete-modpack', packId)
+    deleteModpack: (packId) => ipcRenderer.invoke('delete-modpack', packId),
+    getInstalledMods: (instanceFolder) => ipcRenderer.invoke('get-installed-mods', instanceFolder),
+    toggleMod: (data) => ipcRenderer.invoke('toggle-mod', data)
 });

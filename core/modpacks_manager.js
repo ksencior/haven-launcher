@@ -27,7 +27,7 @@ function selectVersion(modpack) {
     selectVersionBtn.innerText = modpack;
 }
 
-function openModpackEditor(name, data) {
+async function openModpackEditor(name, data) {
     currentEditingPack = {name, ...data}
 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -37,6 +37,57 @@ function openModpackEditor(name, data) {
     document.getElementById('editPackDetails').innerText = `${data.loader} - Minecraft ${data.mcVersion}`;
 
     document.getElementById('mods-list-container').innerHTML = '<p style="text-align:center; color:var(--text-dim);">Wpisz coś w wyszukiwarkę, aby znaleźć mody...</p>'
+
+    await loadInstalledMods(data.folderName);
+}
+async function loadInstalledMods(instanceFolder) {
+    const container = document.getElementById('installed-mods-list');
+    container.innerHTML = '<p style="color: var(--text-dim);">Wczytywanie modów...</p>';
+
+    const mods = await window.api.getInstalledMods(instanceFolder);
+
+    if (mods.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-dim); font-size: 13px;">Brak zainstalowanych modów.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    mods.forEach(mod => {
+        const item = document.createElement('div');
+        item.className = 'installed-mod-item';
+        item.style = `
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px; 
+            background: #1a1a1a; 
+            border-radius: 6px;
+            border: 1px solid ${mod.enabled ? '#333' : '#aa222233'};
+            opacity: ${mod.enabled ? '1' : '0.6'};
+        `;
+
+        item.innerHTML = `
+            <span style="font-size: 13px; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">
+                ${mod.name}
+            </span>
+            <input type="checkbox" ${mod.enabled ? 'checked' : ''} class="mod-toggle-switch">
+        `;
+        const checkbox = item.querySelector('.mod-toggle-switch');
+        checkbox.onchange = async () => {
+            const res = await window.api.toggleMod({
+                instanceName: instanceName,
+                filename: mod.filename,
+                state: checkbox.checked
+            });
+
+            if (res.success) {
+                // Odświeżamy listę, aby zaktualizować nazwy plików w pamięci
+                loadInstalledMods(instanceName);
+            }
+        };
+
+        container.appendChild(item);
+    })
 }
 
 window.api.onLoadModpacks((modpacks) => {

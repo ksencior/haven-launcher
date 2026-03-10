@@ -8,12 +8,14 @@ const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
 const { Auth } =                        require('msmc');
 const util =                            require('minecraft-server-util');
-const { execSync } =                    require('child_process');
+const { execSync, exec, spawn } =       require('child_process');
+const ut =                              require('util');
                                         require('dotenv').config();
 // ---
 
 const launcher = new Client();
 const CF_API_KEY = process.env.CF_API_KEY;
+const execPromise = ut.promisify(exec);
 
 let LAUNCHER_PATH;
 if (process.platform === 'win32') {
@@ -226,33 +228,118 @@ async function getFabricProfile(mcVersion) {
         const profileUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}/${latestLoader}/profile/json`;
         const profileResponse = await axios.get(profileUrl);
 
-        return profileResponse.data;
+        return {
+            id: `fabric-loader-${latestLoader}-${mcVersion}`,
+            data: profileResponse.data
+        };
     } catch (err) {
         console.error("Błąd pobierania profilu Fabric:", err);
         return null;
     }
 }
 
-async function setupLoader(version, loaderType, instanceFolder, event) {
-    if (!loaderType || loaderType === 'vanilla') return true;
+async function setupFabric(version, instanceFolder, event) {
+    const profile = await getFabricProfile(version);
+    if (!profile) return false;
+
+    const versionDir    = path.join(instanceFolder, 'versions', profile.id);
+    const jsonPath      = path.join(versionDir, `${profile.id}.json`);
+
+    if (!fs.existsSync(versionDir)) {
+        fs.mkdirSync(versionDir, { recursive: true });
+    }
+
+    fs.writeFileSync(jsonPath, JSON.stringify(profile.data, null, 4));
+    return profile.id;
+}
+
+async function installFabricApi(mcVersion, instanceFolder) {
+    const FabricAPI_ID = 306612;
+    const modsDir = path.join(instanceFolder, 'mods');
+
+    if (!fs.existsSync(modsDir)) fs.mkdirSync(modsDir, { recursive: true });
 
     try {
-        if (loaderType === 'fabric') {
-            return await setupFabric(version, instanceFolder, event);
-        } else if (loaderType === 'forge') {
-            return await setupForge(version, instanceFolder, event);
+        const res = await axios.get(`https://api.curseforge.com/v1/mods/${FabricAPI_ID}/files?gameVersion=${mcVersion}&modLoaderType=4`, {
+            headers: { 'x-api-key': CF_API_KEY }
+        });
+
+        const file = res.data.data.find(f => f.releaseType === 1) || res.data.data[0];
+
+        if (file) {
+            const outputPath = path.join(modsDir, file.fileName);
+            await downloadFile(file.downloadUrl, outputPath);
+            return true;
         }
+    } catch (error) {
+        console.error(error);
+    }
+    return false;
+}
+
+async function getForgeVersion(mcVersion) {
+    try {
+        const url = 'https://files.minecraftforge.net/maven/net/minecraftforge/forge/promotions_slim.json';
+        const res = await axios.get(url);
+        const promos = res.data.promos;
+
+        let forgeVer = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`];
+        return forgeVer;
     } catch (err) {
-        console.error(err);
-        return false;
+        console.error("Błąd pobierania info o Forge:", err);
+        return null;
     }
 }
 
-async function setupFabric(version, instanceFolder, event) {
-    
-}
 async function setupForge(version, instanceFolder, event) {
-    
+    try {
+        const forgeVer = await getForgeVersion(version);
+        if (!forgeVer) {
+            console.error('Nie znaleziono wersji Forge dla', version);
+            return null;
+        }
+
+        const dummyProfilesPath = path.join(instanceFolder, 'launcher_profiles.json');
+        if (!fs.existsSync(dummyProfilesPath)) {
+            fs.writeFileSync(dummyProfilesPath, JSON.stringify({ profiles: {} }));
+        }
+
+        const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${version}-${forgeVer}/forge-${version}-${forgeVer}-installer.jar`;
+        const installerPath = path.join(instanceFolder, `forge-installer-${version}.jar`);
+        await downloadFile(installerUrl, installerPath, event);
+
+        const javaCmd = process.platform === 'win32' ? 'javaw' : 'java';
+        return new Promise((resolve, reject) => {
+            const args = ['-Djava.net.preferIPv4Stack=true', '-jar', installerPath, '--installClient', instanceFolder];
+            const child = spawn(javaCmd, args, {
+                cwd: instanceFolder
+            });
+
+            child.stdout.on('data', (data) => {
+                console.log(`[Forge/INFO] ${data}`);
+            });
+            child.stderr.on('data', (data) => {
+                console.log(`[Forge/ERROR] ${data}`);
+            });
+            child.on('close', (code) => {
+                if (code === 0) {
+                    console.log("Instalacja Forge zakończona sukcesem.");
+                    if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
+
+                    const versionsDir = path.join(instanceFolder, 'versions');
+                    const folders = fs.readdirSync(versionsDir);
+                    const forgeFolder = folders.find(f => f.toLowerCase().includes('forge'));
+                    resolve(forgeFolder || null);
+                } else {
+                    reject(new Error(`Instalator Forge zakończył pracę z kodem ${code}`));
+                }
+            })
+        });
+        
+    } catch (err) {
+        console.error('Błąd podczas instalacji Forge:', err);
+        return null;
+    }
 }
 
 ipcMain.on('save-settings', (event, data) => {
@@ -295,50 +382,92 @@ ipcMain.on('launch-game', async (event, data) => {
 
     if (!pack) {
         console.error('Could not find definition for', data.version);
+        event.reply('game-closed');
         return;
     }
-    let gameLoader;
-    if (pack.loader === 'fabric') {
-        
-    }
 
-    let gameRoot;
+    let gameRoot = pack.loader !== null
+            ? path.join(instancesPath, pack.folderName)
+            : path.join(LAUNCHER_PATH, 'game');
     let launchVersion;
+    if (pack.loader === 'fabric') {
+        const fabricProfile = await getFabricProfile(pack.mcVersion);
+        const fabricVersionDir = path.join(gameRoot, 'versions', fabricProfile.id);
 
-    if (pack.loader !== null) {
-        gameRoot = path.join(instancesPath, pack.folderName);
-        launchVersion = {
-            number: pack.mcVersion,
-            type: "release",
-            custom: pack.loader
-        };
+        if (!fs.existsSync(fabricVersionDir)) {
+            const installedId = await setupFabric(pack.mcVersion, gameRoot, event);
+            if (!installedId) {
+                console.error("Failed to install Fabric.");
+                return;
+            }
 
-        if (!fs.existsSync(gameRoot)) {
-            console.warn(`Could not find: ${pack.folderName}. Starting download now...`);
+            launchVersion = {
+                number: pack.mcVersion,
+                type: "release",
+                custom: installedId
+            }
+        } else {
+            launchVersion = {
+                number: pack.mcVersion,
+                type: "release",
+                custom: fabricProfile.id
+            }
+        }
+    } else if (pack.loader === 'forge') {
+        const versionsDir = path.join(gameRoot, 'versions');
+        let forgeInstalledId = null;
 
-            if (!fs.existsSync(instancesPath)) fs.mkdirSync(instancesPath, {recursive: true});
+        if (fs.existsSync(versionsDir)) {
+            const folders = fs.readdirSync(versionsDir);
+            forgeInstalledId = folders.find(f => f.toLowerCase().includes('forge'));
+        }
 
-            const zipPath = path.join(instancesPath, pack.zipName);
-            const downloadUrl = `https://havenmine.pl/launcher/api/${pack.zipName}`;
-
-            try {
-                await downloadFile(downloadUrl, zipPath, event);
-                console.log('Downloaded! Now un-ziping the pack...');
-                const zip = new AdmZip(zipPath);
-                zip.extractAllTo(gameRoot, true);
-                console.log('Done!');
-                fs.unlinkSync(zipPath);
-            } catch (err) {
-                console.error("Download error: ", err);
+        if (!forgeInstalledId) {
+            forgeInstalledId = await setupForge(pack.mcVersion, gameRoot, event);
+            if (!forgeInstalledId) {
+                console.error('Nie udalo sie zainstalowac Forge.');
                 return;
             }
         }
-    } else {
-        gameRoot = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher', 'game');
         launchVersion = {
             number: pack.mcVersion,
-            type: "release"
-        };
+            type: "release",
+            custom: forgeInstalledId
+        }
+    } else {
+        if (pack.loader !== null) {
+            launchVersion = {
+                number: pack.mcVersion,
+                type: "release",
+                custom: pack.loader
+            };
+
+            if (!fs.existsSync(gameRoot)) {
+                console.warn(`Could not find: ${pack.folderName}. Starting download now...`);
+
+                if (!fs.existsSync(instancesPath)) fs.mkdirSync(instancesPath, {recursive: true});
+
+                const zipPath = path.join(instancesPath, pack.zipName);
+                const downloadUrl = `https://havenmine.pl/launcher/api/${pack.zipName}`;
+
+                try {
+                    await downloadFile(downloadUrl, zipPath, event);
+                    console.log('Downloaded! Now un-ziping the pack...');
+                    const zip = new AdmZip(zipPath);
+                    zip.extractAllTo(gameRoot, true);
+                    console.log('Done!');
+                    fs.unlinkSync(zipPath);
+                } catch (err) {
+                    console.error("Download error: ", err);
+                    return;
+                }
+            }
+        } else {
+            launchVersion = {
+                number: pack.mcVersion,
+                type: "release"
+            };
+        }
     }
     console.log(`Loading Minecraft ${data.version} for ${data.user}. Loaded memory: ${data.ram}GB RAM.`)
     if (logWindow) logWindow.close();
@@ -427,6 +556,7 @@ ipcMain.on('launch-game', async (event, data) => {
     launcher.on('close', (code) => {
         event.reply('game-closed');
         clearInterval(interval);
+        gameProcess = null;
         if (win) {
             win.show();
         }
@@ -528,10 +658,9 @@ ipcMain.handle('create-custom-instance', async (event, packData) => {
 
     const folderName = packData.name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
     const instanceFolder = path.join(instancesPath, folderName);
-    // const loaderSuccess = await setupLoader(packData.version, packData.loader, instanceFolder, event);
-    // if (!loaderSuccess) {
-    //     return null;
-    // }
+
+    if (packData.loader === 'fabric') await installFabricApi(packData.version, instanceFolder);
+
     const newInstance = {
         id: folderName,
         name: packData.name,
@@ -576,15 +705,21 @@ ipcMain.handle('ping-server', async (event, host) => {
     }
 });
 
-ipcMain.handle('search-mods', async (event, {query, version, loader}) => {
+ipcMain.handle('search-mods', async (event, {query, mcVersion, loader}) => {
+    console.log(`Searching for ${query} for ${mcVersion} on ${loader}`);
     try {
-        const loaderType = loader === 'fabric' ? 4 : 1;
+        let loaderType;
+        if (loader === 'fabric') {
+            loaderType = 4 
+        } else {
+            loaderType = 1;
+        }
 
         const res = await axios.get('https://api.curseforge.com/v1/mods/search', {
             params: {
                 gameId: 432,
                 searchFilter: query,
-                gameVersion: version,
+                gameVersion: mcVersion,
                 modLoaderType: loaderType,
                 classId: 6,
                 pageSize: 20,
@@ -609,6 +744,11 @@ ipcMain.handle('delete-modpack', async (event, packId) => {
 
         if (!packToDelete) {
             console.error('No pack found with id:', packId);
+            return false;
+        }
+
+        if (gameProcess) {
+            console.warn('Cancelling. Game is running.');
             return false;
         }
 
@@ -719,6 +859,8 @@ ipcMain.on('window-close', (event) => {
 
 ipcMain.on('refresh-modpacks', async (event) => {
     const updatedModpacks = await getFullModpackList();
+    ALL_MODPACKS = updatedModpacks;
+    console.log('Refreshing all modpacks.. Data recieved:', updatedModpacks);
     event.reply('load-modpacks', updatedModpacks);
 });
 
@@ -744,7 +886,11 @@ async function downloadFile(url, outputPath, event) {
     const response = await axios({
         url,
         method: 'GET',
-        responseType: 'stream'
+        responseType: 'stream',
+        headers: {
+            'Accept': '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
     });
 
     const totalBytes = parseInt(response.headers['content-length'], 10);

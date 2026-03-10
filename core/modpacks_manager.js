@@ -196,6 +196,7 @@ window.api.onLoadModpacks((modpacks) => {
 
                 document.getElementById('ctx-edit').onclick = () => {
                     if (!packData.isCustom) return;
+                    selectVersion(name);
                     openModpackEditor(name, packData);
                     menu.remove();
                 }
@@ -204,7 +205,7 @@ window.api.onLoadModpacks((modpacks) => {
                     if (!packData.isCustom) return;
                     const success = await window.api.deleteModpack(packData.id);
                     if (success) window.api.refreshModpacks();
-                    if (success && selectedPack === packData.name) selectVersion('HavenPack 1.20.4');
+                    if (success && selectedPack === name) selectVersion('HavenPack 1.20.4');
                     menu.remove();
                 }
 
@@ -330,9 +331,9 @@ modSearchInput.oninput = () => {
         modsContainer.innerHTML = '<p style="text-align:center;">Szukanie...</p>';
 
         try {
-            const { version, loader } = currentEditingPack;
+            const { mcVersion, loader } = currentEditingPack;
 
-            const mods = await window.api.searchMods({ query, version, loader });
+            const mods = await window.api.searchMods({ query, mcVersion, loader });
 
             renderModsList(mods);
         } catch (err) {

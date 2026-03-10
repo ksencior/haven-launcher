@@ -3,6 +3,7 @@
 ![Electron](https://img.shields.io/badge/Electron-25+-blue?logo=electron)
 ![Node](https://img.shields.io/badge/Node.js-18+-green?logo=node.js)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![Platform](https://img.shields.io/badge/Platform-Linux-lightgrey)
 ![Status](https://img.shields.io/badge/Status-Active-success)
 
 **HavenLauncher** is a modern, lightweight, and stylish Minecraft launcher built with **Electron**. It is specifically designed for the HavenMine community, offering seamless integration with dedicated modpacks and an intuitive user experience.

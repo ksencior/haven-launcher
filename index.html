@@ -184,6 +184,32 @@
                         <button id="confirmCreateInstanceBtn" class="btn-outline" style="margin-top: 20px; width: 100%;">Utwórz instancję</button>
                     </div>
                 </div>
+
+                <div id="edit-modpack-page" class="page">
+                    <div class="header-with-back">
+                        <button class="btn-outline" id="backFromEditor">⬅</button>
+                        <h2 id="editPackTitle">Edytuj: Nazwa Paczki</h2>
+                    </div>
+
+                    <div class="editor-tabs">
+                        <button class="tab-btn active" data-tab="info">Info</button>
+                        <button class="tab-btn" data-tab="mods">Mody</button>
+                    </div>
+
+                    <div class="tab-content" id="tab-info">
+                        <div class="create-form-container">
+                            <p id="editPackDetails">Wersja: 1.20.1 | Loader: Fabric</p>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="tab-mods" style="display: none;">
+                        <div class="mods-search-bar">
+                            <input type="text" id="modSearchInput" placeholder="Szukaj modów w CurseForge...">
+                        </div>
+                        <div id="mods-list-container" class="category-grid">
+                            </div>
+                    </div>
+                </div>
             </main>
         </div>
         <div class="action-bar">

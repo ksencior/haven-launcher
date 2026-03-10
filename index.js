@@ -198,7 +198,7 @@ async function renderPopularMods() {
 
     mods.forEach(mod => {
         const card = document.createElement('div');
-        card.className = 'mod-card';
+        card.className = 'mod-card-popular';
 
         const iconUrl = mod.logo ? mod.logo.thumbnailUrl : 'icon.png';
         const downloads = (mod.downloadCount / 1000000).toFixed(1);
@@ -208,7 +208,6 @@ async function renderPopularMods() {
             <div class="mod-info">
                 <span>${name}</span>
                 <small>⬇ ${downloads}M</small>
-                <button class="btn-small">Zainstaluj</button>
             </div>
         `;
         container.appendChild(card);

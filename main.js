@@ -13,6 +13,7 @@ const { execSync } =                    require('child_process');
 // ---
 
 const launcher = new Client();
+const CF_API_KEY = process.env.CF_API_KEY;
 
 let LAUNCHER_PATH;
 if (process.platform === 'win32') {
@@ -440,7 +441,6 @@ ipcMain.on('open-logs', () => {
 
 ipcMain.handle('get-popular-mods', async () => {
     try {
-        const CF_API_KEY = process.env.CF_API_KEY;
 
         const res = await axios.get('https://api.curseforge.com/v1/mods/search', {
             headers: {
@@ -513,6 +513,57 @@ ipcMain.handle('ping-server', async (event, host) => {
             latency: null,
             players: 0
         }
+    }
+});
+
+ipcMain.handle('search-mods', async (event, {query, version, loader}) => {
+    try {
+        const loaderType = loader === 'fabric' ? 4 : 1;
+
+        const res = await axios.get('https://api.curseforge.com/v1/mods/search', {
+            params: {
+                gameId: 432,
+                searchFilter: query,
+                gameVersion: version,
+                modLoaderType: loaderType,
+                classId: 6,
+                pageSize: 20,
+                sortField: 2,
+                sortOrder: 'desc'
+            },
+            headers: { 'x-api-key': CF_API_KEY }
+        });
+        return res.data.data;
+    } catch (err) {
+        console.error('CF Error:', err);
+        return [];
+    }
+});
+
+ipcMain.handle('delete-modpack', async (event, packId) => {
+    try {
+        if (!fs.existsSync(userPacksPath)) return false;
+        let userPacks = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
+
+        const packToDelete = userPacks.find(p => p.id === packId);
+
+        if (!packToDelete) {
+            console.error('No pack found with id:', packId);
+            return false;
+        }
+
+        const packPath = path.join(instancesPath, packToDelete.folderName);
+        if (fs.existsSync(packPath)) {
+            fs.rmSync(packPath, { recursive: true, force: true });
+        }
+
+        const updatedPacks = userPacks.filter(p => p.id !== packId);
+        fs.writeFileSync(userPacksPath, JSON.stringify(updatedPacks, null, 4));
+
+        return true;
+    } catch (err) {
+        console.error('Error while deleting the modpack:', err);
+        return false;
     }
 });
 

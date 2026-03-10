@@ -9,6 +9,17 @@
     --text-dim: #888;
 }
 
+#context-menu {
+    position: absolute; background: #1a1a1a; border: 1px solid #333;
+    border-radius: 5px; z-index: 10000; width: 150px; padding: 5px 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+.menu-item {
+    padding: 8px 12px; cursor: pointer; font-size: 13px; color: #eee;
+}
+.menu-item:hover { background: var(--accent); }
+.menu-item.delete:hover { background: #aa2222; }
+
 * {
     box-sizing: border-box;
     font-family: 'Inter', sans-serif;
@@ -600,7 +611,7 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     width: 100%; height: 100%;
 }
 
-.mod-card {
+.mod-card-popular {
     width: 116px; height: 150px;
     display: flex;
     flex-direction: column;
@@ -613,21 +624,21 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     gap: 5px;
 }
 
-.mod-card img {
+.mod-card-popular img {
     border-radius: 50%;
     width: auto; height: 40%;
 }
 
-.mod-card span {
+.mod-card-popular span {
     font-size: 80%;
 }
 
-.mod-card small {
+.mod-card-popular small {
     color: var(--text-dim);
     font-size: 70%;
 }
 
-.mod-card:hover {
+.mod-card-popular:hover {
     background: rgb(255, 255, 255, 0.05);
 }
 
@@ -765,6 +776,136 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     border-color: var(--accent);
 }
 
+.editor-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 10px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    padding: 8px 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 5px;
+    transition: 0.3s;
+}
+
+.tab-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+    color: white;
+    background: var(--accent);
+}
+
+/* --- Wyszukiwarka Modów --- */
+.mods-search-bar {
+    margin-bottom: 20px;
+}
+
+#modSearchInput {
+    width: 100%;
+    padding: 12px 15px;
+    background: #080808;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    transition: 0.3s;
+}
+
+#modSearchInput:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* --- Lista Modów (Grid) --- */
+#mods-list-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    max-height: calc(100vh - 250px); /* Automatyczne dopasowanie wysokości */
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+/* Stylizacja scrollbara dla listy modów */
+#mods-list-container::-webkit-scrollbar {
+    width: 5px;
+}
+#mods-list-container::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+}
+
+/* Karta Moda (mod-card) */
+.mod-card {
+    background: var(--bg-card);
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    transition: 0.3s;
+}
+
+.mod-card:hover {
+    border-color: #444;
+    transform: translateY(-2px);
+    background: #1d1d1d;
+}
+
+.mod-card img {
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.mod-card h4 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+.mod-card p {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.3;
+}
+
+/* Przycisk instalacji */
+.btn-install {
+    background: #222;
+    color: #eee;
+    border: 1px solid #333;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 8px;
+    transition: 0.2s;
+}
+
+.btn-install:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
 @keyframes loading-anim {
     0% {
         scale: 1;

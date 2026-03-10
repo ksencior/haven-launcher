@@ -7,6 +7,13 @@ const modpacksLoaderSelect = document.getElementById('newInstanceLoader');
 const modpacksLoaderGroup = document.getElementById('loaderGroup');
 const modpacksLoaderHint = document.getElementById('loaderHint');
 
+const modSearchInput = document.getElementById('modSearchInput');
+const modsContainer = document.getElementById('mods-list-container');
+
+
+let searchTimeout;
+let currentEditingPack = null;
+
 function selectVersion(modpack) {
     selectedPack = modpack;
     const modpacks = document.querySelectorAll('.modpackOption');
@@ -18,6 +25,18 @@ function selectVersion(modpack) {
         }
     });
     selectVersionBtn.innerText = modpack;
+}
+
+function openModpackEditor(name, data) {
+    currentEditingPack = {name, ...data}
+
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('edit-modpack-page').classList.add('active');
+
+    document.getElementById('editPackTitle').innerText = `${name}`;
+    document.getElementById('editPackDetails').innerText = `${data.loader} - Minecraft ${data.mcVersion}`;
+
+    document.getElementById('mods-list-container').innerHTML = '<p style="text-align:center; color:var(--text-dim);">Wpisz coś w wyszukiwarkę, aby znaleźć mody...</p>'
 }
 
 window.api.onLoadModpacks((modpacks) => {
@@ -79,6 +98,8 @@ window.api.onLoadModpacks((modpacks) => {
             const packDiv = document.createElement('div');
             packDiv.className = 'modpackOption';
             packDiv.dataset.modpackname = name;
+            
+            if (packData.isCustom) packDiv.dataset.id = packData.id;
 
             let icon;
             let opis;
@@ -105,6 +126,41 @@ window.api.onLoadModpacks((modpacks) => {
             </div>
             `;
             packDiv.onclick = () => selectVersion(name);
+            packDiv.oncontextmenu = (e) => {
+                e.preventDefault();
+
+                const oldMenu = document.getElementById('context-menu');
+                if (oldMenu) oldMenu.remove();
+                if (!packData.isCustom) return;
+                const menu = document.createElement('div');
+                menu.id = 'context-menu';
+                menu.style.top  = `${e.pageY}px`;
+                menu.style.left = `${e.pageX}px`;
+
+                menu.innerHTML = `
+                    <div class="menu-item" id="ctx-edit">🛠️ Edytuj mody</div>
+                    <div class="menu-item delete" id="ctx-delete">🗑️ Usuń paczkę</div>
+                `;
+
+                document.body.appendChild(menu);
+
+                document.getElementById('ctx-edit').onclick = () => {
+                    if (!packData.isCustom) return;
+                    openModpackEditor(name, packData);
+                    menu.remove();
+                }
+
+                document.getElementById('ctx-delete').onclick = async () => {
+                    if (!packData.isCustom) return;
+                    const success = await window.api.deleteModpack(packData.id);
+                    if (success) window.api.refreshModpacks();
+                    if (success && selectedPack === packData.name) selectVersion('HavenPack 1.20.4');
+                    menu.remove();
+                }
+
+                const closeMenu = () => {menu.remove(); document.removeEventListener('click', closeMenu);}
+                setTimeout(() => document.addEventListener('click', closeMenu), 10);
+            }
             grid.appendChild(packDiv);
         });
         section.appendChild(grid);
@@ -197,4 +253,76 @@ modpacksBtnConfirm.onclick = async () => {
             modpacksBtnClose.click();
         }, 1000);
     }
+}
+
+document.getElementById('backFromEditor').onclick = () => {
+    document.getElementById('page-tools').classList.add('active');
+    document.getElementById('edit-modpack-page').classList.remove('active');
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        
+        btn.classList.add('active');
+        document.getElementById(`tab-${btn.dataset.tab}`).style.display = 'block';
+    }
+})
+
+modSearchInput.oninput = () => {
+    clearTimeout(searchTimeout);
+    const query = modSearchInput.value.trim();
+
+    if (query.length < 3) return;
+
+    searchTimeout = setTimeout(async () => {
+        modsContainer.innerHTML = '<p style="text-align:center;">Szukanie...</p>';
+
+        try {
+            const { version, loader } = currentEditingPack;
+
+            const mods = await window.api.searchMods({ query, version, loader });
+
+            renderModsList(mods);
+        } catch (err) {
+            modsContainer.innerHTML = '<p style="color:red;">Błąd pobierania modów.</p>';
+        }
+    }, 500); 
+};
+
+function renderModsList(mods) {
+    modsContainer.innerHTML = '';
+
+    if (mods.length === 0) {
+        modsContainer.innerHTML = '<p>Nie znaleziono żadnych modów dla tej wersji.</p>';
+        return;
+    }
+
+    mods.forEach(mod => {
+        const modCard = document.createElement('div');
+        modCard.className = 'tool-card'; // Używamy Twoich istniejących styli
+        
+        const logoUrl = mod.links && mod.links.websiteUrl ? 
+                        `https://www.curseforge.com/api/v1/mods/${mod.id}/logo` : '';
+
+        const downloads = mod.downloadCount > 1000000 
+            ? (mod.downloadCount / 1000000).toFixed(1) + 'M' 
+            : (mod.downloadCount / 1000).toFixed(0) + 'K';
+
+        modCard.innerHTML = `
+            <div class="tool-icon">
+                <img src="${mod.logo?.thumbnailUrl || 'https://i.imgur.com/83uE76H.png'}" style="width:100%; border-radius:5px;">
+            </div>
+            <div class="tool-info">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <h4 style="margin:0;">${mod.name}</h4>
+                    <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads}</span>
+                </div>
+                <p style="font-size: 11px; color: gray;">${mod.summary.substring(0, 60)}...</p>
+                <button class="btn-install" data-modid="${mod.id}" style="margin-top:5px; padding:4px 8px; font-size:10px;">Zainstaluj</button>
+            </div>
+        `;
+        modsContainer.appendChild(modCard);
+    })
 }

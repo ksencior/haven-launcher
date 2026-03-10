@@ -31,8 +31,6 @@ window.api.onLoadSettings((config) => {
     } else {
         selectedPack = 'HavenPack 1.20.4';
     }
-
-    toggleParticles(particlesCheck.checked);
 });
 
 window.api.getSystemRam().then(ram => {

@@ -207,6 +207,7 @@ window.api.onAppReady(() => {
     loadingScreen.style.opacity = '0';
     mainLayout.style.display = 'flex';
     actionBar.style.display = 'flex';
+    toggleParticles(particlesCheck.checked);
     setTimeout(() => {
         loadingScreen.style.display = 'none';
     }, 500);

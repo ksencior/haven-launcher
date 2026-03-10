@@ -17,5 +17,8 @@ contextBridge.exposeInMainWorld('api', {
     loginMicrosoft: () => ipcRenderer.invoke('login-microsoft'),
     getAccounts: () => ipcRenderer.invoke('get-accounts'),
     saveAccounts: (accounts) => ipcRenderer.invoke('save-accounts', accounts),
-    openLocalFiles: () => ipcRenderer.send('open-local-files')
+    openLocalFiles: () => ipcRenderer.send('open-local-files'),
+    onLoadingStatus: (callback) => ipcRenderer.on('loading-status', (event, data) => callback(data)),
+    onAppReady: (callback) => ipcRenderer.on('app-ready', () => callback()),
+    getSystemRam: () => ipcRenderer.invoke('get-system-ram')
 });

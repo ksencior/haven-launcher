@@ -29,6 +29,11 @@
       "target": "portable",
       "icon": "icon.png"
     },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "icon.png",
+      "category": "Game"
+    },
     "directories": {
       "output": "dist"
     },

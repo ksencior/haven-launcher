@@ -127,14 +127,15 @@ btn.addEventListener('click', () => {
 document.getElementById('closeBtn').onclick = () => {
     window.api.saveSettings(getCurrentSettings());
 
-    mainLayout.style.display = 'none';
-    actionBar.style.display = 'none';
     loadingScreen.style.display = 'flex';
-    loadingText.innerText = 'Zamykanie...';
-
+    loadingScreen.style.opacity = '0';
+    loadingText.innerText = 'Zapisywanie i zamykanie...';
+    setTimeout(() => {
+        loadingScreen.style.opacity = '1';
+    }, 10);
     setTimeout(() => {
         window.api.closeApp();
-    }, 500);
+    }, 1000);
 };
 document.getElementById('minBtn').onclick = () => window.api.minimizeApp();
 document.getElementById('logsBtn').onclick = () => {
@@ -237,6 +238,19 @@ window.api.onGameClosed(() => {
     toggleParticles(particlesCheck.checked);
     serverInterval = setInterval(fetchServerStatus, 10000);
 })
+
+window.api.onLoadingStatus((text) => {
+    if (loadingText) loadingText.innerText = text;
+});
+window.api.onAppReady(() => {
+    loadingScreen.style.opacity = '0';
+    mainLayout.style.display = 'flex';
+    actionBar.style.display = 'flex';
+    toggleParticles(particlesCheck.checked);
+    setTimeout(() => {
+        loadingScreen.style.display = 'none';
+    }, 500);
+});
 
 // -- wyszukiwanie paczek --
 const searchInput = document.getElementById('searchInput');

@@ -1,3 +1,5 @@
+let ramChanged = false;
+
 ramSlider.oninput = function() {
     ramVal.innerHTML = this.value + "GB";
 }
@@ -19,6 +21,7 @@ function getCurrentSettings() {
 
 window.api.onLoadSettings((config) => {
     ramSlider.value = config.ram;
+    if (config.ram) ramChanged = true; 
     ramVal.innerHTML = config.ram + "GB";
     trayCheck.checked = config.minimizeToTray || false;
     tyldaCheck.checked = config.tyldaConsole || false;
@@ -28,10 +31,12 @@ window.api.onLoadSettings((config) => {
     } else {
         selectedPack = 'HavenPack 1.20.4';
     }
-
-    loadingScreen.style.display = 'none';
-    mainLayout.style.display = 'flex';
-    actionBar.style.display = 'flex';
-
-    toggleParticles(particlesCheck.checked);
 });
+
+window.api.getSystemRam().then(ram => {
+    ramSlider.max = ram.total;
+    if (ramChanged) {
+        ramSlider.value = ram.suggested;
+        ramVal.innerHTML = ram.suggested + "GB";
+    }
+})

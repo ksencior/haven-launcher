@@ -8,16 +8,31 @@ const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
 const { Auth } =                        require('msmc');
 const util =                            require('minecraft-server-util');
-require('dotenv').config();
-
+const { execSync } =                    require('child_process');
+                                        require('dotenv').config();
 // ---
 
 const launcher = new Client();
-const LAUNCHER_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher');
+
+let LAUNCHER_PATH;
+if (process.platform === 'win32') {
+    LAUNCHER_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'HavenLauncher');
+} else if (process.platform === 'darwin') {
+    LAUNCHER_PATH = path.join(os.homedir(), 'Library', 'Application Support', 'HavenLauncher');
+} else {
+    LAUNCHER_PATH = path.join(os.homedir(), '.havenlauncher')
+}
 const configPath    = path.join(LAUNCHER_PATH, 'config.json');
 const instancesPath = path.join(LAUNCHER_PATH, 'instances');
 const accountsPath  = path.join(LAUNCHER_PATH, 'accounts.json');
 const userPacksPath = path.join(LAUNCHER_PATH, 'custom_instances.json');
+
+if (!fs.existsSync(LAUNCHER_PATH)) {
+    fs.mkdirSync(LAUNCHER_PATH, { recursive: true });
+}
+if (!fs.existsSync(instancesPath)) {
+    fs.mkdirSync(instancesPath, { recursive: true });
+}
 
 let logWindow;
 let gameProcess;
@@ -91,6 +106,28 @@ function createTray(win) {
     tray.on('double-click', () => win.show());
 }
 
+function validateConfigs() {
+    const defaultConfig = { 
+        ram: 4, 
+        minimizeToTray: false, 
+        tyldaConsole: false, 
+        particlesEnabled: true,
+        version: 'HavenPack 1.20.4' 
+    };
+
+    if (!fs.existsSync(configPath)) {
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 4));
+    } else {
+        try {
+            JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        } catch (e) {
+            // Jeśli plik jest uszkodzony (np. nagłe wyłączenie kompa), nadpisz domyślnym
+            fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 4));
+        }
+    }
+}
+validateConfigs();
+
 function showTrayNotif() {
     if (Notification.isSupported()) {
         const notif = new Notification({
@@ -120,10 +157,21 @@ function createWindow() {
     win.loadFile('index.html');
 
     win.webContents.on('did-finish-load', async () => {
+        updateStatus(win, 'Sprawdzanie środowiska Java...');
+        try {
+        execSync(process.platform === 'win32' ? 'javaw -version' : 'java -version');
+        } catch (e) {
+            updateStatus(mainWindow, "BŁĄD: Nie znaleziono Javy!");
+            return; 
+        }
+        updateStatus(win, 'Ładowanie ustawień...')
         win.webContents.send('load-settings', loadConfig());
+        updateStatus(win, 'Pobieranie listy modyfikacji...');
         getFullModpackList().then(allPacks => {
             ALL_MODPACKS = allPacks;
             win.webContents.send('load-modpacks', ALL_MODPACKS);
+            updateStatus(win, 'Witaj ponownie!');
+            win.webContents.send('app-ready');
         });
     });
 }
@@ -240,7 +288,7 @@ ipcMain.on('launch-game', async (event, data) => {
             max: `${data.ram}G`,
             min: "2G"
         },
-        javaPath: "javaw",
+        javaPath: process.platform === 'win32' ? 'javaw' : 'java',
         detached: false,
         skipAssetsCheck: false
     };
@@ -360,6 +408,14 @@ ipcMain.on('kill-game', () => {
     }
 })
 
+ipcMain.handle('get-system-ram', () => {
+    const totalMemoryGB = Math.floor(os.totalmem() / (1024 * 1024 * 1024));
+    return {
+        total: totalMemoryGB,
+        suggested: Math.min(Math.floor(totalMemoryGB / 2), 8)
+    };
+});
+
 ipcMain.on('close-logs', () => {
     if (logWindow && !logWindow.isDestroyed()) {
         logWindow.destroy(); 
@@ -473,6 +529,12 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
+
+function updateStatus(win, text) {
+    if (win) {
+        win.webContents.send('loading-status', text);
+    }
+}
 
 async function downloadFile(url, outputPath, event) {
     const writer = fs.createWriteStream(outputPath);

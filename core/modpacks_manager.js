@@ -50,7 +50,7 @@ async function loadInstalledMods(instanceFolder) {
         container.innerHTML = '<p style="color: var(--text-dim); font-size: 13px;">Brak zainstalowanych modów.</p>';
         return;
     }
-
+    playBtnText.innerText = 'GRAJ';
     container.innerHTML = '';
     mods.forEach(mod => {
         const item = document.createElement('div');
@@ -87,7 +87,7 @@ async function loadInstalledMods(instanceFolder) {
         };
 
         container.appendChild(item);
-    })
+    });
 }
 
 window.api.onLoadModpacks((modpacks) => {

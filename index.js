@@ -1,4 +1,5 @@
-const btn = document.getElementById('playBtn');
+const playBtn = document.getElementById('playBtn');
+const playBtnText = playBtn.querySelector('.btn-text');
 const selectVersionBtn = document.getElementById('selectVersionBtn');
 const welcomeText = document.querySelector('.welcome-text h2');
 const welcomeSubText = document.querySelector('.welcome-text p');
@@ -6,8 +7,8 @@ const welcomeSubText = document.querySelector('.welcome-text p');
 const navItems = document.querySelectorAll('.nav-item');
 const pages = document.querySelectorAll('.page');
 
-const pBar = document.getElementById('pBar');
-const pBarContainer = document.getElementById('pBarContainer');
+const btnProgress = document.getElementById('btnProgress');
+const btnParticles = document.getElementById('btnParticles');
 const actionBar = document.querySelector('.action-bar');
 
 const loadingScreen = document.getElementById('loading-screen');
@@ -91,7 +92,7 @@ selectVersionBtn.onclick = () => {
 }
 
 // GRAJ BTN
-btn.addEventListener('click', () => {
+playBtn.addEventListener('click', () => {
     const settings = getCurrentSettings();
     window.api.saveSettings(settings);
 
@@ -112,8 +113,10 @@ btn.addEventListener('click', () => {
         window.api.startMC(gameOptions);
         toggleParticles(false);
         serverInterval = null;
-        btn.innerText = "Uruchomiono.."
-        btn.disabled = true;
+        playBtnText.innerText = "Ładowanie.."
+        playBtn.disabled = true;
+        playBtn.style.background = '#222';
+        spawnBtnParticles(true)
     } else {
         console.log('Dane do startu:', gameOptions);
     }
@@ -214,21 +217,69 @@ async function renderPopularMods() {
     });
 }
 renderPopularMods();
-
+let btnParticleEnabled = false;
 window.api.onProgress((data) => {
-    pBarContainer.style.display = 'block';
+    playBtn.style.background = '#222';
     const percent = Math.round((data.task / data.total) * 100);
     
-    pBar.style.width = percent + "%";
+    if (btnProgress) btnProgress.style.width = `${percent}%`;
+    const btnText = playBtn.querySelector('.btn-text');
+    if (btnText) {
+        btnText.innerText = `Ładowanie: ${percent}%`;
+    }
 
+    if (percent > 0 && percent < 100 && !btnParticleEnabled) {
+        spawnBtnParticles();
+        btnParticleEnabled = true;
+    }
     if (percent >= 100) {
-        setTimeout(() => { pBarContainer.style.display = 'none'; }, 3000);
+        destroyBtnParticles();
+        btnText.innerText = `Działa...`;
+        setTimeout(() => { 
+            playBtn.style.background = 'var(--accent)'; 
+            btnParticleEnabled = false;
+        }, 3000);
     }
 });
 
+function destroyBtnParticles() {
+    const container = document.getElementById('btnParticles');
+    if (container) {
+        container.innerHTML = '';
+    }
+    if (Array.isArray(window.pJSDom)) {
+        window.pJSDom = window.pJSDom.filter(p => {
+            try {
+                return p.pJS.canvas.el.parentNode.id !== 'btnParticles';
+            } catch (e) {
+                return false;
+            }
+        });
+    }
+}
+
+function spawnBtnParticles() {
+    particlesJS("btnParticles", {
+        particles: {
+            number: { value: 100, density: { enable: true, value_area: 100 } },
+            color: { value: "#ffffff" }, // Twój kolor akcentu
+            shape: { type: "circle" },
+            opacity: { value: 0.9, random: true },
+            size: { value: 5, random: true },
+            line_linked: { 
+                enable: false 
+            },
+            move: { enable: true, speed: 3.5, direction: "right", random: true }
+        },
+        interactivity: { detect_on: "canvas", events: { onhover: { enable: false } } },
+        retina_detect: true
+    });
+}
+
 window.api.onGameClosed(() => {
-    btn.innerText = 'GRAJ';
-    btn.disabled = false;
+    playBtnText.innerText = 'GRAJ';
+    playBtn.disabled = false;
+    playBtn.style.background = 'var(--accent)';
     toggleParticles(particlesCheck.checked);
     serverInterval = setInterval(fetchServerStatus, 10000);
 })

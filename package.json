@@ -1,6 +1,6 @@
 {
   "name": "havenlauncher",
-  "version": "0.2.2-beta",
+  "version": "0.3.0-beta",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -25,7 +25,7 @@
     "electron-builder": "^26.8.1"
   },
   "build": {
-    "appId": "com.havenmine.launcher",
+    "appId": "com.ksencior.havenlauncher",
     "productName": "HavenLauncher",
     "win": {
       "target": "portable",

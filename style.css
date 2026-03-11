@@ -238,6 +238,10 @@ select {
     transition: 0.3s;
     letter-spacing: 1px;
     width: 180px;
+    z-index: 12;
+
+    position: relative;
+    overflow: hidden;
 }
 
 #playBtn:hover {
@@ -247,6 +251,36 @@ select {
 
 #playBtn:active {
     transform: translateY(0);
+}
+
+.btn-progress {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: 0.3s ease;
+    overflow: hidden;
+    z-index: 11;
+}
+.btn-text {
+    position: relative;
+    z-index: 13;
+    pointer-events: none;
+}
+#btnParticles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 180px;
+    height: 100%;
+    z-index: 12;
+    pointer-events: none;
+}
+
+@keyframes fly {
+    0% { transform: translate(0, 0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--x), var(--y)) scale(0); opacity: 0; }
 }
 
 #selectVersionBtn {

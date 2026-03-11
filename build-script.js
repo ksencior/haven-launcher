@@ -7,13 +7,16 @@ builder.build({
         productName: "HavenLauncher",
         win: {
             target: "nsis",
-            icon: "icon.png"
+            icon: "icon.png",
+            artifactName: "${productName}-Setup-${version}.${ext}"
         },
         nsis: {
-            oneClick: false,
+            oneClick: true,
+            perMachine: false,
             allowToChangeInstallationDirectory: true,
             createDesktopShortcut: true,
-            warningsAsErrors: false
+            warningsAsErrors: false,
+            runAfterFinish: true
         },
         linux: {
             target: [

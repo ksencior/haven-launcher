@@ -30,6 +30,7 @@ const configPath    = path.join(LAUNCHER_PATH, 'config.json');
 const instancesPath = path.join(LAUNCHER_PATH, 'instances');
 const accountsPath  = path.join(LAUNCHER_PATH, 'accounts.json');
 const userPacksPath = path.join(LAUNCHER_PATH, 'custom_instances.json');
+const errorLogPath  = path.join(LAUNCHER_PATH, 'error_logs.txt');
 
 if (!fs.existsSync(LAUNCHER_PATH)) {
     fs.mkdirSync(LAUNCHER_PATH, { recursive: true });
@@ -48,27 +49,49 @@ let USER_MODPACKS;
 let ALL_MODPACKS;
 
 function setupAutoUpdater(win) {
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
+    return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+            console.log("Updater timeout - kontynuuję uruchamianie.");
+            updateStatus(win, 'Nie udało się sprawdzić aktualizacji, startowanie...');
+            resolve();
+        }, 20000);
 
-    autoUpdater.on('checking-for-update', () => {
-        updateStatus(win, 'Szukanie aktualizacji...');
-    });
-    autoUpdater.on('error', (err) => {
-        updateStatus(win, 'Wystąpił błąd poczas aktualizowania.');
-        console.error(err);
-    });
+        autoUpdater.allowPrerelease = true;
+        autoUpdater.autoDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on('download-progress', (progressObj) => {
-        let percent = Math.round(progressObj.percent);
-        updateStatus(win, `Aktualizowanie... (${percent}%)`);
-    });
-    autoUpdater.on('update-downloaded', (info) => {
-        updateStatus(win, 'Uruchamiam ponownie...');
-        setTimeout(() => {
-            autoUpdater.quitAndInstall();
-        }, 2000);
-    });
+        const finish = () => {
+            clearTimeout(timeout);
+            resolve();
+        };
+
+        autoUpdater.on('checking-for-update', () => {
+            updateStatus(win, 'Szukanie aktualizacji...');
+        });
+        autoUpdater.on('error', (err) => {
+            updateStatus(win, `Błąd aktualizacji: ${err.message.substring(0, 20)}...`);
+            fs.writeFileSync(errorLogPath, err.stack || err.err.toString(), 'utf-8');
+            console.error(err);
+            finish();
+        });
+
+        autoUpdater.on('download-progress', (progressObj) => {
+            let percent = Math.round(progressObj.percent);
+            updateStatus(win, `Aktualizowanie... (${percent}%)`);
+        });
+        autoUpdater.on('update-not-available', () => {
+            updateStatus(win, 'Launcher jest aktualny.');
+            finish();
+        });
+        autoUpdater.on('update-downloaded', (info) => {
+            updateStatus(win, 'Uruchamiam ponownie...');
+            setTimeout(() => {
+                autoUpdater.quitAndInstall();
+            }, 2000);
+        });
+
+        autoUpdater.checkForUpdates().catch(() => finish());
+    })
 }
 
 function getAccounts() {
@@ -204,8 +227,7 @@ function createWindow() {
 
     win.webContents.on('did-finish-load', async () => {
         if (app.isPackaged) {
-            setupAutoUpdater(win);
-            autoUpdater.checkForUpdates();
+            await setupAutoUpdater(win);
         } else {
             updateStatus(win, 'Pomijam sprawdzanie aktualizacji...');
         }

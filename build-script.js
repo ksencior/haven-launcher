@@ -13,7 +13,7 @@ builder.build({
         nsis: {
             oneClick: true,
             perMachine: false,
-            allowToChangeInstallationDirectory: true,
+            allowToChangeInstallationDirectory: false,
             createDesktopShortcut: true,
             warningsAsErrors: false,
             runAfterFinish: true

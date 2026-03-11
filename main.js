@@ -14,7 +14,7 @@ const ut =                              require('util');
 // ---
 
 const launcher = new Client();
-const CF_API_KEY = process.env.CF_API_KEY;
+const CF_API_KEY = process.env.CF_API_KEY || app.getAppMetrics()[0]?.context?.CF_API_KEY || require('./package.json').CF_API_KEY;
 const execPromise = ut.promisify(exec);
 
 let LAUNCHER_PATH;

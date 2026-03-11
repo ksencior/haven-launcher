@@ -174,7 +174,7 @@ function createWindow() {
         frame: false,
         resizable: false
     });
-    win.webContents.openDevTools();
+    //win.webContents.openDevTools();
     win.loadFile('index.html');
 
     win.webContents.on('did-finish-load', async () => {

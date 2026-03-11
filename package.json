@@ -34,12 +34,20 @@
       "icon": "icon.png",
       "category": "Game"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ksencior",
+        "repo": "haven-launcher"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
     "files": [
       "**/*",
-      "!dist/*"
+      "!dist/*",
+      "!.env"
     ]
   }
 }

@@ -8,7 +8,7 @@ const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
 const { Auth } =                        require('msmc');
 const util =                            require('minecraft-server-util');
-const { execSync, exec, spawn } =       require('child_process');
+const { execSync, exec, spawn, spawnSync } =       require('child_process');
 const ut =                              require('util');
 const { autoUpdater } =                 require('electron-updater');
                                         require('dotenv').config();
@@ -26,6 +26,10 @@ if (process.platform === 'win32') {
 } else {
     LAUNCHER_PATH = path.join(os.homedir(), '.havenlauncher')
 }
+const JAVA_DIR      = path.join(LAUNCHER_PATH, 'runtime');
+const JAVA_EXE      = process.platform === 'win32'
+                    ? path.join(JAVA_DIR, 'bin', 'java.exe')
+                    : path.join(JAVA_DIR, 'bin', 'java');
 const configPath    = path.join(LAUNCHER_PATH, 'config.json');
 const instancesPath = path.join(LAUNCHER_PATH, 'instances');
 const accountsPath  = path.join(LAUNCHER_PATH, 'accounts.json');
@@ -92,6 +96,68 @@ function setupAutoUpdater(win) {
 
         autoUpdater.checkForUpdates().catch(() => finish());
     })
+}
+
+function getSystemJavaVersion() {
+    try {
+        const child = spawnSync('java', ['-version'], { encoding: 'utf-8' });
+        const output = child.stderr || child.stdout;
+
+        if (!output) return null;
+
+        const versionMatch = output.match(/(?:java|openjdk) version "(\d+)/i);
+        if (versionMatch) {
+            const ver = parseInt(versionMatch[1]);
+            return ver;
+        }
+
+        if (output.includes('version "1.8"')) return 8
+    } catch (e) {
+        console.warn(e);
+        return null;
+    }
+    return null;
+}
+
+async function setupJava(win, requiredVersion = 17) {
+    if (fs.existsSync(JAVA_EXE)) {
+        return JAVA_EXE;
+    }
+
+    updateStatus(win, "Sprawdzanie środowiska Java...");
+    const systemVersion = getSystemJavaVersion();
+    
+    if (systemVersion >= requiredVersion) {
+        console.log(`Znaleziono pasującą Javę systemową (v${systemVersion}).`);
+        return 'java'; 
+    }
+
+    updateStatus(win, "Pobieranie środowiska Java...");
+
+    const javaUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_x64_windows_hotspot_17.0.8.1_1.zip";
+    const zipPath = path.join(LAUNCHER_PATH, 'java.zip');
+
+    try {
+        await downloadFile(javaUrl, zipPath, { sender: win.webContents });
+        updateStatus(win, "Instalowanie Javy...");
+        const zip = new AdmZip(zipPath);
+
+        const zipEntries = zip.getEntries();
+        const rootFolder = zipEntries[0].entryName.split('/')[0];
+
+        zip.extractAllTo(LAUNCHER_PATH, true);
+
+        const extractedPath = path.join(LAUNCHER_PATH, rootFolder);
+        if (fs.existsSync(JAVA_DIR)) fs.rmSync(JAVA_DIR, { recursive: true });
+        fs.renameSync(extractedPath, JAVA_DIR);
+
+        fs.unlinkSync(zipPath);
+        return JAVA_EXE;
+    } catch (error) {
+        console.error("Blad Javy:", error);
+        updateStatus(win, 'Błąd podczas instalowania Javy!');
+        throw error;
+    }
 }
 
 function getAccounts() {
@@ -231,12 +297,12 @@ function createWindow() {
         } else {
             updateStatus(win, 'Pomijam sprawdzanie aktualizacji...');
         }
-        updateStatus(win, 'Sprawdzanie środowiska Java...');
+        let javaPathToUse;
         try {
-            execSync(process.platform === 'win32' ? 'javaw -version' : 'java -version');
-        } catch (e) {
-            updateStatus(mainWindow, "BŁĄD: Nie znaleziono Javy!");
-            return; 
+            javaPathToUse = await setupJava(win, 17);
+        } catch (err) {
+            console.error(err);
+            return;
         }
         updateStatus(win, 'Ładowanie ustawień...')
         win.webContents.send('load-settings', loadConfig());
@@ -525,11 +591,12 @@ ipcMain.on('launch-game', async (event, data) => {
     console.log(`Loading Minecraft ${data.version} for ${data.user}. Loaded memory: ${data.ram}GB RAM.`)
     if (logWindow) logWindow.close();
     createLogWindow();
-
+    const finalJava = fs.existsSync(JAVA_EXE) ? JAVA_EXE : 'java';
     let opts = {
         authorization: finalAuth,
         root: gameRoot,
         version: launchVersion,
+        javaPath: finalJava,
         memory: {
             max: `${data.ram}G`,
             min: "2G"

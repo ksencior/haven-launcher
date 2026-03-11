@@ -591,7 +591,8 @@ ipcMain.on('launch-game', async (event, data) => {
     console.log(`Loading Minecraft ${data.version} for ${data.user}. Loaded memory: ${data.ram}GB RAM.`)
     if (logWindow) logWindow.close();
     createLogWindow();
-    const finalJava = fs.existsSync(JAVA_EXE) ? JAVA_EXE : 'java';
+    const defaultSysJava = process.platform === 'win32' ? 'javaw' : 'java';
+    const finalJava = fs.existsSync(JAVA_EXE) ? JAVA_EXE : defaultSysJava;
     let opts = {
         authorization: finalAuth,
         root: gameRoot,
@@ -601,7 +602,6 @@ ipcMain.on('launch-game', async (event, data) => {
             max: `${data.ram}G`,
             min: "2G"
         },
-        javaPath: process.platform === 'win32' ? 'javaw' : 'java',
         detached: false,
         skipAssetsCheck: false
     };

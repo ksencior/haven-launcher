@@ -14,6 +14,7 @@
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",
     "dotenv": "^17.3.1",
+    "electron-updater": "^6.8.3",
     "minecraft-launcher-core": "^3.18.2",
     "minecraft-server-util": "^5.4.4",
     "msmc": "^5.0.5"
@@ -45,6 +46,13 @@
       "**/*",
       "!dist/*",
       "!.env"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ksencior",
+        "repo": "haven-launcher"
+      }
     ]
   }
 }

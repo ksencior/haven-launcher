@@ -10,6 +10,7 @@ const { Auth } =                        require('msmc');
 const util =                            require('minecraft-server-util');
 const { execSync, exec, spawn } =       require('child_process');
 const ut =                              require('util');
+const { autoUpdater } =                 require('electron-updater');
                                         require('dotenv').config();
 // ---
 
@@ -45,6 +46,30 @@ const modpacksPath  = path.join(__dirname, 'modpacks.json');
 const MODPACKS      = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
 let USER_MODPACKS;
 let ALL_MODPACKS;
+
+function setupAutoUpdater(win) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('checking-for-update', () => {
+        updateStatus(win, 'Szukanie aktualizacji...');
+    });
+    autoUpdater.on('error', (err) => {
+        updateStatus(win, 'Wystąpił błąd poczas aktualizowania.');
+        console.error(err);
+    });
+
+    autoUpdater.on('download-progress', (progressObj) => {
+        let percent = Math.round(progressObj.percent);
+        updateStatus(win, `Aktualizowanie... (${percent}%)`);
+    });
+    autoUpdater.on('update-downloaded', (info) => {
+        updateStatus(win, 'Uruchamiam ponownie...');
+        setTimeout(() => {
+            autoUpdater.quitAndInstall();
+        }, 2000);
+    });
+}
 
 function getAccounts() {
     if (fs.existsSync(accountsPath)) {
@@ -178,9 +203,15 @@ function createWindow() {
     win.loadFile('index.html');
 
     win.webContents.on('did-finish-load', async () => {
+        if (app.isPackaged) {
+            setupAutoUpdater(win);
+            autoUpdater.checkForUpdates();
+        } else {
+            updateStatus(win, 'Pomijam sprawdzanie aktualizacji...');
+        }
         updateStatus(win, 'Sprawdzanie środowiska Java...');
         try {
-        execSync(process.platform === 'win32' ? 'javaw -version' : 'java -version');
+            execSync(process.platform === 'win32' ? 'javaw -version' : 'java -version');
         } catch (e) {
             updateStatus(mainWindow, "BŁĄD: Nie znaleziono Javy!");
             return; 

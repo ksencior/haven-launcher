@@ -6,8 +6,14 @@ builder.build({
         appId: "com.ksencior.havenlauncher",
         productName: "HavenLauncher",
         win: {
-            target: "portable",
+            target: "nsis",
             icon: "icon.png"
+        },
+        nsis: {
+            oneClick: false,
+            allowToChangeInstallationDirectory: true,
+            createDesktopShortcut: true,
+            warningsAsErrors: false
         },
         linux: {
             target: [
@@ -27,6 +33,16 @@ builder.build({
         ],
         extraMetadata: {
             CF_API_KEY: process.env.CF_API_KEY
+        },
+        publish: {
+            provider: "github",
+            owner: "ksencior",
+            repo: "haven-launcher",
+            releaseType: "release"
         }
     }
+}).then(() => {
+    console.log("Zbudowano aplikacje.");
+}).catch((err) => {
+    console.error(err);
 })

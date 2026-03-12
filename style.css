@@ -3,10 +3,13 @@
 :root {
     --bg-dark: #0c0c0c;
     --bg-card: #161616;
+    --bg-card-opaque: rgba(22, 22, 22, 0.6);
     --accent: rgb(185, 41, 185);
     --accent-glow: rgba(185, 41, 185, 0.4);
     --text-main: #f0f0f0;
     --text-dim: #888;
+    --bg-accept: #2ecc71;
+    --bg-deny: #e74c3c;
 }
 
 #context-menu {
@@ -434,7 +437,7 @@ select {
     cursor: pointer;
     top: 0; left: 0; right: 0; bottom: 0;
     background-color: #333;
-    transition: .4s;
+    transition: 0.4s;
     border-radius: 34px;
 }
 
@@ -686,7 +689,23 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     justify-content: center;
 }
 
+#installed-mods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+}
+
 .installed-mod-item {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 10px; 
+    background: #1a1a1a; 
+    border-radius: 6px;
+    width: 100%;
     transition: 0.2s;
 }
 
@@ -694,13 +713,12 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     background: #222 !important;
 }
 
-/* Prosty switch zamiast zwykłego checkboxa */
-.mod-toggle-switch {
+/* .mod-toggle-switch {
     cursor: pointer;
     accent-color: var(--accent);
     width: 18px;
     height: 18px;
-}
+} */
 
 .link-btn.discord:hover { border-left: 3px solid #5865F2; }
 .link-btn.www:hover { border-left: 3px solid #2ecc71; }
@@ -783,25 +801,26 @@ input:checked + .slider-round:before { transform: translateX(22px); }
 .acc-delete { background: none; border: none; color: #ff4444; cursor: pointer; font-size: 16px; }
 
 .header-with-back {
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 15px;
-    margin-bottom: 30px;
+    margin-bottom: 15px;
     border-bottom: 1px solid #333;
     padding-bottom: 15px;
 }
 
 .create-form-container {
-    max-width: 500px;
+    width: 100%;
     margin: 0 auto;
-    background: var(--bg-card);
-    padding: 25px;
+    background: var(--bg-card-opaque);
+    backdrop-filter: blur(4px);
+    padding: 25px 50px;
     border-radius: 12px;
     border: 1px solid #222;
 }
 
 .form-group {
-    margin-bottom: 20px;
     display: flex;
     flex-direction: column;
     transition: 0.3s ease;
@@ -809,13 +828,27 @@ input:checked + .slider-round:before { transform: translateX(22px); }
 
 .form-group label {
     margin-bottom: 8px;
-    font-weight: 600;
+    font-weight: 300;
+    text-transform: uppercase;
     color: var(--text-main);
+    font-size: 90%;
 }
 
-.form-group input, .form-group select {
+.form-group input {
+    background: none;
+    min-width: 60%; width: fit-content; max-width: 80%;
+    border: none;
+    border-bottom: 1px solid #333;
     padding: 12px;
-    background: #000;
+    border-radius: 0px;
+    border-top-left-radius: 6px; border-top-right-radius: 6px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.form-group select {
+    padding: 12px;
+    background: var(--bg-dark);
     border: 1px solid #333;
     color: white;
     border-radius: 6px;
@@ -826,12 +859,53 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     border-color: var(--accent);
 }
 
+.modloader-item {
+    width: 150px; height: 150px;
+    border-radius: 12px;
+    background: var(--bg-dark);
+    border: 1px solid #333;
+    cursor: pointer;
+    scale: 1;
+    transition: 0.3s;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    
+    padding: 20px;
+}
+
+.modloader-item .ml-icon {
+    height: 70%;
+}
+
+.ml-icon img {
+    height: 100%;
+    border-radius: 12px;
+}
+
+.modloader-item .ml-info {
+    height: 25%;
+    font-weight: 300;
+    text-transform: uppercase;
+}
+
+.modloader-item:hover {
+    border: 1px solid white;
+    scale: 1.025;
+}
+.modloader-item.active {
+    border: 1px solid var(--accent) !important;
+    background: var(--bg-card) !important;
+    scale: 1.025;
+}
+
 .editor-tabs {
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #222;
     padding-bottom: 10px;
+    margin-left: 150px;
 }
 
 .tab-btn {
@@ -879,10 +953,11 @@ input:checked + .slider-round:before { transform: translateX(22px); }
 
 /* --- Lista Modów (Grid) --- */
 #mods-list-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
     gap: 15px;
-    max-height: calc(100vh - 250px); /* Automatyczne dopasowanie wysokości */
+    height: calc(100vh - 250px);
     overflow-y: auto;
     padding-right: 10px;
 }
@@ -896,7 +971,6 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     border-radius: 10px;
 }
 
-/* Karta Moda (mod-card) */
 .mod-card {
     background: var(--bg-card);
     border: 1px solid #222;
@@ -905,6 +979,8 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     display: flex;
     gap: 12px;
     align-items: center;
+    width: 100%;
+    height: 80px;
     transition: 0.3s;
 }
 
@@ -914,9 +990,13 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     background: #1d1d1d;
 }
 
-.mod-card img {
-    width: 50px;
-    height: 50px;
+.m-icon {
+    width: 10%;
+    height: 70px;
+}
+
+.m-icon img {
+    height: 70px;
     border-radius: 8px;
     object-fit: cover;
 }
@@ -928,6 +1008,14 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 180px;
+}
+
+.m-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-left: 10px;
+    width: 90%;
 }
 
 .mod-card p {
@@ -956,6 +1044,26 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     border-color: var(--accent);
     color: white;
 }
+
+.btn-delete {
+    background: #222;
+    color: var(--bg-deny);
+    border: 1px solid var(--bg-deny);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 8px;
+    transition: 0.2s;
+}
+
+.btn-delete:hover {
+    background: var(--bg-deny);
+    border-color: var(--bg-deny);
+    color: white;
+}
+
 @keyframes loading-anim {
     0% {
         scale: 1;

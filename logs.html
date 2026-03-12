@@ -176,7 +176,7 @@
             }
         }
 
-        window.api.onLog((data) => {
+        function appendLogLine(data) {
             const line = document.createElement('div');
             let type = 'info'; 
             let tagText = 'GAME';
@@ -222,6 +222,13 @@
             if (container.children.length > 1000) {
                 container.removeChild(container.firstChild);
             }
+        }
+        window.api.getLogHistory().then(history => {
+            history.forEach(msg => appendLogLine(msg));
+        })
+
+        window.api.onLog((data) => {
+            appendLogLine(data);
         });
 
         window.api.onLoadSettings((config) => {

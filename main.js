@@ -14,6 +14,21 @@ const { autoUpdater } =                 require('electron-updater');
                                         require('dotenv').config();
 // ---
 
+/*
+TODO:
+- Poprawa UI dla tworzenia/edytowania paczek (DONE!)
+- Pobieranie gotowych paczek
+- Integracja z modrinchem
+- Pobieranie i wybieranie wersji Javy dla starszych wersji
+- Wykrywanie zainstalowanych modow w 'sklepie' (DONE!)
+- HavenSync
+- Wlasny mod dla HavenPacka
+- Poprzestawiać kategorie modpacków
+- Gdy gracz instaluje moda - launcher powinien sprawdzić jakich bibliotek mod używa i pobiera potrzebne biblioteki (DONE!)
+
+
+*/
+
 const launcher = new Client();
 const CF_API_KEY = process.env.CF_API_KEY || app.getAppMetrics()[0]?.context?.CF_API_KEY || require('./package.json').CF_API_KEY;
 const execPromise = ut.promisify(exec);
@@ -46,6 +61,8 @@ if (!fs.existsSync(instancesPath)) {
 let logWindow;
 let gameProcess;
 let tray = null;
+let logBuffer = [];
+const MAX_LOGS = 1000;
 
 const modpacksPath  = path.join(__dirname, 'modpacks.json');
 const MODPACKS      = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
@@ -128,7 +145,7 @@ async function setupJava(win, requiredVersion = 17) {
     const systemVersion = getSystemJavaVersion();
     
     if (systemVersion >= requiredVersion) {
-        console.log(`Znaleziono pasującą Javę systemową (v${systemVersion}).`);
+        console.log(`Znaleziono pasujaca Jave systemowa (v${systemVersion}).`);
         return 'java'; 
     }
 
@@ -485,7 +502,8 @@ ipcMain.handle('login-microsoft', async (event) => {
 ipcMain.on('launch-game', async (event, data) => {
 
     launcher.removeAllListeners();
-    
+    logBuffer = [];
+
     const win = BrowserWindow.fromWebContents(event.sender);
 
     console.log("Launching new Minecraft process...");
@@ -589,8 +607,15 @@ ipcMain.on('launch-game', async (event, data) => {
         }
     }
     console.log(`Loading Minecraft ${data.version} for ${data.user}. Loaded memory: ${data.ram}GB RAM.`)
-    if (logWindow) logWindow.close();
+    if (logWindow) logWindow.destroy();
     createLogWindow();
+    function broadcastLog(line) {
+        logBuffer.push(line);
+        if (logBuffer.length > MAX_LOGS) logBuffer.shift();
+        if (logWindow && !logWindow.isDestroyed()) {
+            logWindow.webContents.send('mc-log', line);
+        }
+    }
     const defaultSysJava = process.platform === 'win32' ? 'javaw' : 'java';
     const finalJava = fs.existsSync(JAVA_EXE) ? JAVA_EXE : defaultSysJava;
     let opts = {
@@ -648,8 +673,8 @@ ipcMain.on('launch-game', async (event, data) => {
             stream.on('data', chunk => {
                 const lines = chunk.toString().split(/\r?\n/);
                 lines.forEach(line => {
-                    if (line.trim() !== '' && logWindow) {
-                        logWindow.webContents.send('mc-log', line);
+                    if (line.trim() !== '') {
+                        broadcastLog(line);
                     }
                 });
             });
@@ -660,11 +685,10 @@ ipcMain.on('launch-game', async (event, data) => {
     const interval = setInterval(watchLog, 300);
     launcher.on('debug', (e) => {
         if (e.includes("Launching with arguments")) return;
-        console.log("[DEBUG]", e);
-        if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER] ${e}`);
+        broadcastLog(`[LAUNCHER] ${e}`);
     });
     launcher.on('data', (e) => {
-        if (logWindow) logWindow.webContents.send('mc-log', e);
+        broadcastLog(e);
     });
 
     launcher.on('download', (e) => console.log("[POBIERANIE]", e));
@@ -677,8 +701,12 @@ ipcMain.on('launch-game', async (event, data) => {
         event.reply('game-closed');
         clearInterval(interval);
         gameProcess = null;
+        broadcastLog(`[LAUNCHER] Logs saved at ${gameRoot}\logs.`);
         if (win) {
             win.show();
+        }
+        if(logWindow) {
+            logWindow.show();
         }
     })
 });
@@ -728,6 +756,10 @@ ipcMain.handle('get-system-ram', () => {
         total: totalMemoryGB,
         suggested: Math.min(Math.floor(totalMemoryGB / 2), 8)
     };
+});
+
+ipcMain.handle('get-log-history', () => {
+    return logBuffer;
 });
 
 ipcMain.on('close-logs', () => {
@@ -932,38 +964,90 @@ ipcMain.handle('toggle-mod', async (event, { instanceFolder, filename, state }) 
 ipcMain.handle('install-mod', async (event, { modId, version, loader, instanceFolder }) => {
     try {
         const loaderType = loader === 'fabric' ? 4 : (loader=== 'forge' ? 1 : 0);
+        const modsPath = path.join(instancesPath, instanceFolder, 'mods');
+        if (!fs.existsSync(modsPath)) fs.mkdirSync(modsPath, { recursive: true });
 
-        const res = await axios.get(`https://api.curseforge.com/v1/mods/${modId}/files`, {
-            params: {
-                gameVersion: version,
-                modLoaderType: loaderType
-            },
-            headers: { 'x-api-key': CF_API_KEY }
-        });
+        const processedMods = new Set();
+        let mainModFileName = null;
 
-        const files = res.data.data;
-        if (!files || files.length === 0) {
-            return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+        async function downloadModWithDependencies(currentModId, isMainMod = false) {
+            if (processedMods.has(currentModId)) return;
+            processedMods.add(currentModId);
+
+            console.log('Szukanie biblioteki o id:', currentModId);
+
+            const res = await axios.get(`https://api.curseforge.com/v1/mods/${currentModId}/files`, {
+                params: {
+                    gameVersion: version,
+                    modLoaderType: loaderType
+                },
+                headers: { 'x-api-key': CF_API_KEY }
+            });
+            const files = res.data.data;
+            if (!files || files.length === 0) {
+                return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+            }
+
+            const targetFile = files[0];
+            let downloadUrl = targetFile.downloadUrl;
+
+            if (!downloadUrl) {
+                const fileIdStr = targetFile.id.toString();
+                const part1 = fileIdStr.slice(0, 4);
+                const part2 = fileIdStr.slice(4);
+                downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${targetFile.fileName}`;
+            }
+
+            const modFilePath = path.join(modsPath, targetFile.fileName);
+
+            if (isMainMod) {
+                mainModFileName = targetFile.fileName;
+            }
+
+            if (!fs.existsSync(modFilePath)) {
+                await downloadFile(downloadUrl, modFilePath, event);
+            } else {
+                console.warn(`${targetFile.fileName} already exists. Skipping..`);
+            }
+
+            if (targetFile.dependencies && targetFile.dependencies.length > 0) {
+                for (const dep of targetFile.dependencies) {
+                    if (dep.relationType === 3 && dep.modId) {
+                        console.log('Installing dependency:', dep.modId);
+                        await downloadModWithDependencies(dep.modId, false);
+                    }
+                }
+            }
         }
 
-        const targetFile = files[0];
-        let downloadUrl = targetFile.downloadUrl;
+        await downloadModWithDependencies(modId, true);
 
-        if (!downloadUrl) {
-            const fileIdStr = targetFile.id.toString();
-            const part1 = fileIdStr.slice(0, 4);
-            const part2 = fileIdStr.slice(4);
-            downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${targetFile.fileName}`;
+        if (!mainModFileName) {
+            return { success: false, error: 'Brak plikow dla glownego moda' };
         }
 
-        const modFilePath = path.join(instancesPath, instanceFolder, 'mods', targetFile.fileName);
-
-        await downloadFile(downloadUrl, modFilePath, event);
-
-        return { success: true, fileName: targetFile.fileName };
+        return { success: true, fileName: mainModFileName };
     } catch (err) {
         console.error("Błąd podczas instalacji moda:", err);
         return { success: false, error: 'Błąd pobierania.' };
+    }
+});
+
+ipcMain.handle('uninstall-mod', async (event, { instanceFolder, fileName }) => {
+    try {
+        console.log(instancesPath, instanceFolder, fileName)
+        const jarFilePath = path.join(instancesPath, instanceFolder, 'mods', fileName);
+        console.log('Usuwam', jarFilePath);
+        if (!fs.existsSync(jarFilePath)) {
+            return { success: false };
+        }
+        
+        fs.rmSync(jarFilePath, { recursive: true, force: true });
+        console.log('Usunieto:', jarFilePath);
+        return { success: true };
+    } catch (err) {
+        console.error(err);
+        return { success: false };
     }
 });
 

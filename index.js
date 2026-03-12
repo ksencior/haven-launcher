@@ -39,6 +39,10 @@ let activeAccount = null;
 let selectedPack = null;
 let particlesInitialized = false;
 
+function capitalizeString(str) {
+    return String(str).charAt(0).toUpperCase() + String(str).slice(1);
+}
+
 navItems.forEach(item => {
     item.onclick = () => {
         const pageId = `page-${item.getAttribute('data-page')}`;

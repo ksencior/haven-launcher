@@ -6,6 +6,7 @@ const modpacksVersionSelect = document.getElementById('newInstanceVersion');
 const modpacksLoaderSelect = document.getElementById('newInstanceLoader');
 const modpacksLoaderGroup = document.getElementById('loaderGroup');
 const modpacksLoaderHint = document.getElementById('loaderHint');
+const modpacksLoadersContainer = document.getElementById('modloaders-items-container');
 
 const modSearchInput = document.getElementById('modSearchInput');
 const modsContainer = document.getElementById('mods-list-container');
@@ -34,7 +35,7 @@ async function openModpackEditor(name, data) {
     document.getElementById('edit-modpack-page').classList.add('active');
 
     document.getElementById('editPackTitle').innerText = `${name}`;
-    document.getElementById('editPackDetails').innerText = `${data.loader} - Minecraft ${data.mcVersion}`;
+    document.getElementById('editPackDetails').innerText = `${capitalizeString(data.loader)} | Minecraft ${data.mcVersion}`;
 
     document.getElementById('mods-list-container').innerHTML = '<p style="text-align:center; color:var(--text-dim);">Wpisz coś w wyszukiwarkę, aby znaleźć mody...</p>'
 
@@ -56,12 +57,6 @@ async function loadInstalledMods(instanceFolder) {
         const item = document.createElement('div');
         item.className = 'installed-mod-item';
         item.style = `
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 10px; 
-            background: #1a1a1a; 
-            border-radius: 6px;
             border: 1px solid ${mod.enabled ? '#333' : '#aa222233'};
             opacity: ${mod.enabled ? '1' : '0.6'};
         `;
@@ -70,9 +65,31 @@ async function loadInstalledMods(instanceFolder) {
             <span style="font-size: 13px; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">
                 ${mod.name}
             </span>
-            <input type="checkbox" ${mod.enabled ? 'checked' : ''} class="mod-toggle-switch">
+            <label class="s-control">
+                <button class="btn-delete mod-uninstall-btn" style="margin-right: 10px;">Odinstaluj</button>
+                <label class="switch">
+                    <input type="checkbox" ${mod.enabled ? 'checked' : ''}  class="mod-toggle-switch">
+                    <span class="slider-round"></span>
+                </label>
+            </label>
         `;
         const checkbox = item.querySelector('.mod-toggle-switch');
+        const uninstallBtn = item.querySelector('.mod-uninstall-btn');
+        uninstallBtn.onclick = async () => {
+            uninstallBtn.innerText = 'Usuwanie...';
+            uninstallBtn.disabled = true;
+            const res = await window.api.uninstallMod({
+                instanceFolder: instanceFolder,
+                fileName: mod.filename
+            });
+
+            if (res.success) {
+                uninstallBtn.innerText = 'Usunięto!';
+                setTimeout(() => {
+                    loadInstalledMods(instanceFolder);
+                }, 1000);
+            }
+        }
         checkbox.onchange = async () => {
             const res = await window.api.toggleMod({
                 instanceFolder: instanceFolder,
@@ -97,8 +114,8 @@ window.api.onLoadModpacks((modpacks) => {
     const groups = {
         "Polecane": [],
         "Paczki HavenMine": [],
-        "Vanilla": [],
-        "Inne": []
+        "Własne paczki": [],
+        "Vanilla": []
     };
 
     Object.keys(modpacks).forEach(name => {
@@ -112,7 +129,7 @@ window.api.onLoadModpacks((modpacks) => {
         } else if (nameLC.includes('vanilla')) {
             groups["Vanilla"].push({name, data: packData});
         } else {
-            groups["Inne"].push({name, data: packData});
+            groups["Własne paczki"].push({name, data: packData});
         }
     })
 
@@ -124,7 +141,7 @@ window.api.onLoadModpacks((modpacks) => {
         const section = document.createElement('div');
         section.className = 'category-section'
 
-        if (catName === 'Vanilla' || catName == 'Inne') {
+        if (catName === 'Vanilla' || catName == 'Paczki HavenMine') {
             section.classList.add('collapsed');
         }
 
@@ -262,17 +279,56 @@ modpacksVersionSelect.onchange = () => {
     modpacksLoaderHint.style.display = 'none';
 
     modpacksLoaderSelect.innerHTML = '<option value="vanilla">Vanilla (Brak modów)</option>';
-
+    modpacksLoadersContainer.innerHTML = `
+        <div class="modloader-item" data-id='vanilla'>
+            <div class="ml-icon">
+                <img src="https://static.wikia.nocookie.net/animatorvsanimation/images/5/52/MinecraftIcon.png" alt="Modloader">
+            </div>
+            <div class="ml-info">
+                <h4>Vanilla</h4>
+            </div>
+        </div>
+        `;
     const parts = version.split('.');
     const minor = parseInt(parts[1]);
 
     if (minor >= 14) {
         modpacksLoaderSelect.innerHTML += '<option value="fabric">Fabric</option>';
+        modpacksLoadersContainer.innerHTML += `
+        <div class="modloader-item" data-id='fabric'>
+            <div class="ml-icon">
+                <img src="https://docs.fabricmc.net//logo.png" alt="Fabric">
+            </div>
+            <div class="ml-info">
+                <h4>Fabric</h4>
+            </div>
+        </div>
+        `;
     }
 
     if (minor >= 7) {
         modpacksLoaderSelect.innerHTML += '<option value="forge">Forge</option>';
+        modpacksLoadersContainer.innerHTML += `
+        <div class="modloader-item" data-id='forge'>
+            <div class="ml-icon">
+                <img src="https://avatars.githubusercontent.com/u/1390178?v=4" alt="Forge">
+            </div>
+            <div class="ml-info">
+                <h4>Forge</h4>
+            </div>
+        </div>
+        `;
     }
+
+    document.querySelectorAll('.modloader-item').forEach(item => {
+        item.onclick = () => {
+            const id = item.dataset.id;
+            modpacksLoaderSelect.value = id;
+            document.querySelectorAll('.modloader-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active')
+            console.log(item, id);
+        }
+    });
 }
 
 modpacksBtnConfirm.onclick = async () => {
@@ -331,18 +387,20 @@ modSearchInput.oninput = () => {
         modsContainer.innerHTML = '<p style="text-align:center;">Szukanie...</p>';
 
         try {
-            const { mcVersion, loader } = currentEditingPack;
+            const { mcVersion, loader, folderName } = currentEditingPack;
 
             const mods = await window.api.searchMods({ query, mcVersion, loader });
 
-            renderModsList(mods);
+            const installedMods = await window.api.getInstalledMods(folderName);
+
+            renderModsList(mods, installedMods);
         } catch (err) {
             modsContainer.innerHTML = '<p style="color:red;">Błąd pobierania modów.</p>';
         }
     }, 500); 
 };
 
-function renderModsList(mods) {
+function renderModsList(mods, installedMods = []) {
     modsContainer.innerHTML = '';
 
     if (mods.length === 0) {
@@ -352,7 +410,7 @@ function renderModsList(mods) {
 
     mods.forEach(mod => {
         const modCard = document.createElement('div');
-        modCard.className = 'tool-card'; // Używamy Twoich istniejących styli
+        modCard.className = 'mod-card';
         
         const logoUrl = mod.links && mod.links.websiteUrl ? 
                         `https://www.curseforge.com/api/v1/mods/${mod.id}/logo` : '';
@@ -361,23 +419,41 @@ function renderModsList(mods) {
             ? (mod.downloadCount / 1000000).toFixed(1) + 'M' 
             : (mod.downloadCount / 1000).toFixed(0) + 'K';
 
+        const slug = mod.slug ? mod.slug.toLowerCase() : mod.name.toLowerCase().replace(/\s+/g, '-');
+        const firstWord = mod.name.toLowerCase().split(' ')[0];
+
+        const isInstalled = installedMods.some(installed => {
+            const fname = installed.filename.toLowerCase();
+            return fname.includes(slug) || fname.includes(firstWord);
+        })
+
+        let btnHtml = '';
+        if (isInstalled) {
+            btnHtml = `<button class="btn-install" id="install-btn-${mod.id}" style="margin-top:5px; padding:4px 8px; font-size:10px; background:#333; color:#aaa; cursor:not-allowed;" disabled>Zainstalowano</button>`;
+        } else {
+            btnHtml = `<button class="btn-install" id="install-btn-${mod.id}" style="margin-top:5px; padding:4px 8px; font-size:10px;">Zainstaluj</button>`;
+        }
+
         modCard.innerHTML = `
-            <div class="tool-icon">
-                <img src="${mod.logo?.thumbnailUrl || 'https://i.imgur.com/83uE76H.png'}" style="width:100%; border-radius:5px;">
+            <div class="m-icon">
+                <img src="${mod.logo?.thumbnailUrl || 'https://i.imgur.com/83uE76H.png'}">
             </div>
-            <div class="tool-info">
-                <div style="display:flex; justify-content:space-between; align-items:start;">
+            <div class="m-info">
+                <div style="display:flex; flex-direction: column;">
                     <h4 style="margin:0;">${mod.name}</h4>
-                    <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads}</span>
+                    <p style="font-size: 11px; color: gray;">${mod.summary.substring(0, 60)}...</p>
                 </div>
-                <p style="font-size: 11px; color: gray;">${mod.summary.substring(0, 60)}...</p>
-                <button class="btn-install" id="install-btn-${mod.id}" style="margin-top:5px; padding:4px 8px; font-size:10px;">Zainstaluj</button>
+                <div style="display:flex; flex-direction: column;">
+                    <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads}</span>
+                    ${btnHtml}
+                </div>
             </div>
         `;
         modsContainer.appendChild(modCard);
 
         const installBtn = modCard.querySelector(`#install-btn-${mod.id}`);
         installBtn.onclick = async () => {
+            if (isInstalled) return;
             installBtn.innerText = 'Pobieranie...';
             installBtn.disabled = true;
             installBtn.style.opacity = '0.5';

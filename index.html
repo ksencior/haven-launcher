@@ -67,7 +67,11 @@
                 <div id="page-tools" class="page">
                     <div class="section-header">
                         <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
-                            <h2>Wybierz paczke <button id="createCustomPackBtn" class="btn-create" style="margin-left: 15px">+</button></h2>
+                            <h2>
+                                Wybierz paczke 
+                                <button id="createCustomPackBtn" class="btn-create" style="margin-left: 15px">+</button>
+                                <button id="downloadModpacksBtn" class="btn-outline" style="margin-left: 15px">Pobierz modpacki</button>
+                            </h2>
                             <input type="text" id="searchInput" placeholder="Szukaj wersji (np. 1.20)..." style="width: 220px; padding: 10px 15px; border-radius: 8px; background: #0a0a0a; border: 1px solid #333; color: white; font-size: 13px;">
                         </div>
                     </div>
@@ -227,6 +231,19 @@
                             </div>
                     </div>
                 </div>
+
+                <div id="download-modpack-page" class="page">
+                    <div class="header-with-back" style="width: 100%;">
+                        <button class="btn-outline" id="backFromBrowser">⬅</button>
+                        <div style="display: flex; flex-direction: column; justify-content: center; width: 40%;">
+                            <h2 style="margin-bottom: 5px;">Przeglądaj modpacki</h2>
+                            <input type="text" id="search-ready-modpack">
+                        </div>
+                    </div>
+                    <div id="browse-modpacks-content">
+
+                    </div>
+                </div>
             </main>
         </div>
         <div class="action-bar">
@@ -273,7 +290,7 @@
         </div>
     </div>
     <div style="position: absolute; bottom: 5px; right: 10px; font-size: 10px; color: var(--text-dim); pointer-events: none; z-index: 42069;">
-        HavenLauncher v0.5.0-beta
+        HavenLauncher v0.6.0-beta
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="index.js"></script>

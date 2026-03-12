@@ -17,13 +17,13 @@ const { autoUpdater } =                 require('electron-updater');
 /*
 TODO:
 - Poprawa UI dla tworzenia/edytowania paczek (DONE!)
-- Pobieranie gotowych paczek
+- Pobieranie gotowych paczek .
 - Integracja z modrinchem
 - Pobieranie i wybieranie wersji Javy dla starszych wersji
 - Wykrywanie zainstalowanych modow w 'sklepie' (DONE!)
 - HavenSync
 - Wlasny mod dla HavenPacka
-- Poprzestawiać kategorie modpacków
+- Poprzestawiać kategorie modpacków (DONE)
 - Gdy gracz instaluje moda - launcher powinien sprawdzić jakich bibliotek mod używa i pobiera potrzebne biblioteki (DONE!)
 
 
@@ -41,6 +41,20 @@ if (process.platform === 'win32') {
 } else {
     LAUNCHER_PATH = path.join(os.homedir(), '.havenlauncher')
 }
+const JAVA_CONFIG = {
+    '8': {
+        url: 'https://api.adoptium.net/v3/binary/latest/8/ga/windows/x64/jdk/hotspot/normal/adoptium',
+        folder: 'java8'
+    },
+    '17': {
+        url: 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/adoptium',
+        folder: 'java17'
+    },
+    '21': {
+        url: 'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/adoptium',
+        folder: 'java21'
+    }
+};
 const JAVA_DIR      = path.join(LAUNCHER_PATH, 'runtime');
 const JAVA_EXE      = process.platform === 'win32'
                     ? path.join(JAVA_DIR, 'bin', 'java.exe')
@@ -113,6 +127,54 @@ function setupAutoUpdater(win) {
 
         autoUpdater.checkForUpdates().catch(() => finish());
     })
+}
+
+function getRequiredJava(mcVersion) {
+    const v = mcVersion.split('.').map(Number);
+
+    if (v[1] > 20 || (v[1] === 20 && v[2] >= 5)) return JAVA_CONFIG['21'];
+    if (v[1] >= 17) return JAVA_CONFIG['17'];
+    return JAVA_CONFIG['8'];
+}
+
+async function getJavaPath(mcVersion, event = null) {
+    const config = getRequiredJava(mcVersion);
+    const runtimeRoot = path.join(LAUNCHER_PATH, 'runtime');
+    const javaFolder = path.join(runtimeRoot, config.folder);
+    
+    const javaExe = process.platform === 'win32' ? 'javaw.exe' : 'java';
+    
+    let executablePath = null;
+    if (fs.existsSync(javaFolder)) {
+        const subDirs = fs.readdirSync(javaFolder);
+        for (const sub of subDirs) {
+            const fullPath = path.join(javaFolder, sub, 'bin', javaExe);
+            if (fs.existsSync(fullPath)) {
+                executablePath = fullPath;
+                break;
+            }
+        }
+    }
+
+    if (executablePath) return executablePath;
+
+    if (!fs.existsSync(runtimeRoot)) fs.mkdirSync(runtimeRoot, { recursive: true });
+    const zipPath = path.join(runtimeRoot, `${config.folder}.zip`);
+
+    await downloadFile(config.url, zipPath, event);
+
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(javaFolder, true);
+    
+    fs.unlinkSync(zipPath);
+
+    const subDirsAfter = fs.readdirSync(javaFolder);
+    for (const sub of subDirsAfter) {
+        const fullPath = path.join(javaFolder, sub, 'bin', javaExe);
+        if (fs.existsSync(fullPath)) return fullPath;
+    }
+
+    throw new Error("Nie udało się odnaleźć pliku wykonywalnego Javy po instalacji.");
 }
 
 function getSystemJavaVersion() {
@@ -353,19 +415,22 @@ function createLogWindow() {
     logWindow.on('closed', () => {logWindow = null;});
 }
 
-async function getFabricProfile(mcVersion) {
+async function getFabricProfile(mcVersion, loaderVersion = null) {
     try {
-        const loaderUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`;
-        const loaders = (await axios.get(loaderUrl)).data;
-        if (!loaders || loaders.length === 0) return null;
+        if (!loaderVersion) {
+            const loaderUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`;
+            const loaders = (await axios.get(loaderUrl)).data;
+            if (!loaders || loaders.length === 0) return null;
 
-        const latestLoader = loaders[0].loader.version;
-
-        const profileUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}/${latestLoader}/profile/json`;
+            loaderVersion = loaders[0].loader.version;
+        }
+        if (String(loaderVersion).startsWith('fabric-')) loaderVersion = String(loaderVersion).replace('fabric-', '');
+        console.log(`LoaderVersion: ${loaderVersion}`)
+        const profileUrl = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}/${loaderVersion}/profile/json`;
         const profileResponse = await axios.get(profileUrl);
 
         return {
-            id: `fabric-loader-${latestLoader}-${mcVersion}`,
+            id: `fabric-loader-${loaderVersion}-${mcVersion}`,
             data: profileResponse.data
         };
     } catch (err) {
@@ -374,8 +439,8 @@ async function getFabricProfile(mcVersion) {
     }
 }
 
-async function setupFabric(version, instanceFolder, event) {
-    const profile = await getFabricProfile(version);
+async function setupFabric(version, instanceFolder, loaderVersion = null) {
+    const profile = await getFabricProfile(version, loaderVersion);
     if (!profile) return false;
 
     const versionDir    = path.join(instanceFolder, 'versions', profile.id);
@@ -427,26 +492,26 @@ async function getForgeVersion(mcVersion) {
     }
 }
 
-async function setupForge(version, instanceFolder, event) {
+async function setupForge(version, instanceFolder, forgeVersion = null, event, javaPath) {
     try {
-        const forgeVer = await getForgeVersion(version);
-        if (!forgeVer) {
-            console.error('Nie znaleziono wersji Forge dla', version);
-            return null;
+        if (!forgeVersion) {
+            console.log('Nie podano wersji Forge, biore najnowsza.');
+            forgeVersion = await getForgeVersion(version);
         }
-
+        if (!forgeVersion) throw new Error('Nie znaleziono wersji Forge.');
+        console.log(`Instalowanie Forge v${forgeVersion}.`);
         const dummyProfilesPath = path.join(instanceFolder, 'launcher_profiles.json');
         if (!fs.existsSync(dummyProfilesPath)) {
             fs.writeFileSync(dummyProfilesPath, JSON.stringify({ profiles: {} }));
         }
 
-        const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${version}-${forgeVer}/forge-${version}-${forgeVer}-installer.jar`;
+        const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${version}-${forgeVersion}/forge-${version}-${forgeVersion}-installer.jar`;
         const installerPath = path.join(instanceFolder, `forge-installer-${version}.jar`);
         await downloadFile(installerUrl, installerPath, event);
 
-        const javaCmd = process.platform === 'win32' ? 'javaw' : 'java';
+        const javaCmd = javaPath;
         return new Promise((resolve, reject) => {
-            const args = ['-Djava.net.preferIPv4Stack=true', '-jar', installerPath, '--installClient', instanceFolder];
+            const args = ['-Djava.net.preferIPv4Stack=true', '-Dgapid.skip=true', '-jar', installerPath, '--installClient', instanceFolder];
             const child = spawn(javaCmd, args, {
                 cwd: instanceFolder
             });
@@ -522,17 +587,17 @@ ipcMain.on('launch-game', async (event, data) => {
         event.reply('game-closed');
         return;
     }
-
-    let gameRoot = pack.loader !== null
+    const globalGameRoot = path.join(LAUNCHER_PATH, 'game');
+    let gameDir = pack.loader !== null
             ? path.join(instancesPath, pack.folderName)
-            : path.join(LAUNCHER_PATH, 'game');
+            : globalGameRoot
     let launchVersion;
-    if (pack.loader === 'fabric') {
+    if (String(pack.loader).includes('fabric')) {
         const fabricProfile = await getFabricProfile(pack.mcVersion);
-        const fabricVersionDir = path.join(gameRoot, 'versions', fabricProfile.id);
+        const fabricVersionDir = path.join(globalGameRoot, 'versions', fabricProfile.id);
 
         if (!fs.existsSync(fabricVersionDir)) {
-            const installedId = await setupFabric(pack.mcVersion, gameRoot, event);
+            const installedId = await setupFabric(pack.mcVersion, globalGameRoot);
             if (!installedId) {
                 console.error("Failed to install Fabric.");
                 return;
@@ -550,21 +615,22 @@ ipcMain.on('launch-game', async (event, data) => {
                 custom: fabricProfile.id
             }
         }
-    } else if (pack.loader === 'forge') {
-        const versionsDir = path.join(gameRoot, 'versions');
-        let forgeInstalledId = null;
+    } else if (String(pack.loader).includes('forge')) {
+        let forgeInstalledId = pack.versionId;
 
-        if (fs.existsSync(versionsDir)) {
-            const folders = fs.readdirSync(versionsDir);
-            forgeInstalledId = folders.find(f => f.toLowerCase().includes('forge'));
+        // Zabezpieczenie na wypadek braku ID paczki (szukamy w folderze globalnym)
+        if (!forgeInstalledId) {
+            const versionsDir = path.join(globalGameRoot, 'versions');
+            if (fs.existsSync(versionsDir)) {
+                const folders = fs.readdirSync(versionsDir);
+                // Zmieniono szukanie, aby dopasowało konkretną wersję MC
+                forgeInstalledId = folders.find(f => f.toLowerCase().includes('forge') && f.includes(pack.mcVersion));
+            }
         }
 
-        if (!forgeInstalledId) {
-            forgeInstalledId = await setupForge(pack.mcVersion, gameRoot, event);
-            if (!forgeInstalledId) {
-                console.error('Nie udalo sie zainstalowac Forge.');
-                return;
-            }
+        if (!forgeInstalledId || !fs.existsSync(path.join(globalGameRoot, 'versions', forgeInstalledId))) {
+            const installJavaPath = await getJavaPath(pack.mcVersion, event);
+            forgeInstalledId = await setupForge(pack.mcVersion, globalGameRoot, null, event, installJavaPath);
         }
         launchVersion = {
             number: pack.mcVersion,
@@ -579,7 +645,7 @@ ipcMain.on('launch-game', async (event, data) => {
                 custom: pack.loader
             };
 
-            if (!fs.existsSync(gameRoot)) {
+            if (!fs.existsSync(gameDir)) {
                 console.warn(`Could not find: ${pack.folderName}. Starting download now...`);
 
                 if (!fs.existsSync(instancesPath)) fs.mkdirSync(instancesPath, {recursive: true});
@@ -591,7 +657,7 @@ ipcMain.on('launch-game', async (event, data) => {
                     await downloadFile(downloadUrl, zipPath, event);
                     console.log('Downloaded! Now un-ziping the pack...');
                     const zip = new AdmZip(zipPath);
-                    zip.extractAllTo(gameRoot, true);
+                    zip.extractAllTo(gameDir, true);
                     console.log('Done!');
                     fs.unlinkSync(zipPath);
                 } catch (err) {
@@ -616,19 +682,30 @@ ipcMain.on('launch-game', async (event, data) => {
             logWindow.webContents.send('mc-log', line);
         }
     }
-    const defaultSysJava = process.platform === 'win32' ? 'javaw' : 'java';
-    const finalJava = fs.existsSync(JAVA_EXE) ? JAVA_EXE : defaultSysJava;
+    const selectedJavaPath = await getJavaPath(pack.mcVersion, event);
+    const forgeFixArgs = [
+        "--add-opens", "java.base/java.util.concurrent=ALL-UNNAMED",
+        "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
+        "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+        "--add-opens", "java.base/java.util=ALL-UNNAMED",
+        "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
+    ];
     let opts = {
         authorization: finalAuth,
-        root: gameRoot,
+        root: globalGameRoot,
         version: launchVersion,
-        javaPath: finalJava,
+        javaPath: selectedJavaPath,
         memory: {
             max: `${data.ram}G`,
             min: "2G"
         },
-        detached: false,
-        skipAssetsCheck: false
+        overrides: {
+            detached: false,
+            gameDirectory: gameDir,
+            cwd: gameDir
+        },
+        skipAssetsCheck: false,
+        customArgs: forgeFixArgs
     };
 
     launcher.launch(opts).then(child => {
@@ -644,7 +721,7 @@ ipcMain.on('launch-game', async (event, data) => {
         if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER/ERR] ${err.message}`);
     });
     const logFile = path.join(
-        gameRoot,
+        gameDir,
         'logs',
         'latest.log'
     );
@@ -701,7 +778,7 @@ ipcMain.on('launch-game', async (event, data) => {
         event.reply('game-closed');
         clearInterval(interval);
         gameProcess = null;
-        broadcastLog(`[LAUNCHER] Logs saved at ${gameRoot}\logs.`);
+        broadcastLog(`[LAUNCHER] Logs saved at ${path.join(gameDir, 'logs')}`);
         if (win) {
             win.show();
         }
@@ -857,6 +934,27 @@ ipcMain.handle('ping-server', async (event, host) => {
     }
 });
 
+ipcMain.handle('get-ready-modpacks', async (event, { query = '' }) => {
+    try {
+        const params = {
+            gameId: 432,
+            classId: 4471,
+            pageSize: 50,
+            sortField: 2,
+            sortOrder: 'desc'
+        }
+        if (query && query.length > 0) params.searchFilter = query;
+        const res = await axios.get('https://api.curseforge.com/v1/mods/search', {
+            params: params,
+            headers: { 'x-api-key': CF_API_KEY }
+        });
+        return res.data.data;
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+});
+
 ipcMain.handle('search-mods', async (event, {query, mcVersion, loader}) => {
     console.log(`Searching for ${query} for ${mcVersion} on ${loader}`);
     try {
@@ -958,6 +1056,129 @@ ipcMain.handle('toggle-mod', async (event, { instanceFolder, filename, state }) 
     } catch (err) {
         console.error(err);
         return { success: false };
+    }
+});
+
+ipcMain.handle('open-external-link', (event, link) => {
+    shell.openExternal(link);
+});
+
+ipcMain.handle('install-ready-modpack', async (event, packData) => {
+    try {
+        const file = packData.latestFiles[0];
+        if (!file) return { success: false, error: 'Brak plików paczki.' };
+
+        let downloadUrl = file.downloadUrl;
+        if (!downloadUrl) {
+            const fileIdStr = file.id.toString();
+            const part1 = fileIdStr.slice(0, 4);
+            const part2 = fileIdStr.slice(4);
+            downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${file.fileName}`;
+        }
+
+        const safeName = packData.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const folderName = safeName + '_' + Date.now();
+        const instanceFolder = path.join(instancesPath, folderName);
+        const zipPath = path.join(instancesPath, `${folderName}_temp.zip`);
+
+        if (!fs.existsSync(instancesPath)) fs.mkdirSync(instancesPath, { recursive: true });
+
+        await downloadFile(downloadUrl, zipPath, event);
+
+        const zip = new AdmZip(zipPath);
+        const tempExtractDir = path.join(instancesPath, `${folderName}_extracted`);
+        zip.extractAllTo(tempExtractDir, true);
+
+        const manifestPath = path.join(tempExtractDir, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) {
+            throw new Error("Brak manifest.json w paczce!");
+        }
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        fs.mkdirSync(instanceFolder, { recursive: true });
+        const mcVersion = manifest.minecraft.version;
+        let loaderType = 'vanilla';
+        let loaderVerison = null;
+        let finalVersionId = mcVersion;
+
+        const globalGameRoot = path.join(LAUNCHER_PATH, 'game');
+        if (!fs.existsSync(globalGameRoot)) fs.mkdirSync(globalGameRoot, {recursive:true});
+
+        const primaryLoader = manifest.minecraft.modLoaders.find(l => l.primary);
+        if (primaryLoader) {
+            const fullId = primaryLoader.id;
+            console.log(`Info: Loader ma id ${fullId}, werjsa MC: ${mcVersion}`);
+            if (fullId.startsWith('forge-')) {
+                loaderType = 'forge';
+                loaderVerison = fullId.replace('forge-', '');
+                const installJavaPath = await getJavaPath(mcVersion, event);
+                finalVersionId = await setupForge(mcVersion, globalGameRoot, loaderVerison, event, installJavaPath);
+            } else if (fullId.startsWith('fabric-')) {
+                loaderType = 'fabric';
+                loaderVerison = fullId.replace('farbic-', '');
+                finalVersionId = await setupFabric(mcVersion, globalGameRoot, loaderVerison);
+            }
+        }
+
+        let customInstances = [];
+        if (fs.existsSync(userPacksPath)) {
+            customInstances = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
+        }
+
+        const newInstance = {
+            id: folderName,
+            name: packData.name,
+            mcVersion: mcVersion,
+            loader: loaderType !== 'vanilla' ? finalVersionId : null,
+            versionId: finalVersionId,
+            folderName: folderName,
+            isCustom: true
+        };
+
+        customInstances.push(newInstance);
+        fs.writeFileSync(userPacksPath, JSON.stringify(customInstances, null, 2));
+        
+        const overridesDir = path.join(tempExtractDir, manifest.overrides || 'overrides');
+        if (fs.existsSync(overridesDir)) {
+            fs.cpSync(overridesDir, instanceFolder, { recursive: true });
+        }
+
+        const modsFolder = path.join(instanceFolder, 'mods');
+        if (!fs.existsSync(modsFolder)) fs.mkdirSync(modsFolder, { recursive: true });
+
+        console.log(`Rozpoczęto pobieranie ${manifest.files.length} modów...`);
+        const win = BrowserWindow.fromWebContents(event.sender);
+        const packId = packData.id;
+        const modsToDownload = manifest.files.length;
+        let modsDownloaded = 0;
+        for (const modData of manifest.files) {
+            try {
+                const res = await axios.get(`https://api.curseforge.com/v1/mods/${modData.projectID}/files/${modData.fileID}`, {
+                    headers: { 'x-api-key': CF_API_KEY }
+                });
+
+                const modFile = res.data.data;
+                let modDownloadUrl = modFile.downloadUrl;
+                if (!modDownloadUrl) {
+                    const fidStr = modFile.id.toString();
+                    modDownloadUrl = `https://edge.forgecdn.net/files/${fidStr.slice(0, 4)}/${fidStr.slice(4)}/${modFile.fileName}`;
+                }
+                const modOutputPath = path.join(modsFolder, modFile.fileName);
+                if (!fs.existsSync(modOutputPath)) {
+                    await downloadFile(modDownloadUrl, modOutputPath);
+                }
+                modsDownloaded++;
+                win.webContents.send('modpack-download', { modsDownloaded, modsToDownload, packId });
+            } catch (modErr) {
+                console.error(`Nie udalo sie pobrac moda ${modData.projectID}:`, modErr.message);
+            }
+        }
+
+        fs.unlinkSync(zipPath);
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        return {success: true, instance: newInstance}
+    } catch (err) {
+        console.error("Błąd podczas instalacji modpacka:", err);
+        return { success: false, error: err.message };
     }
 });
 
@@ -1064,7 +1285,7 @@ ipcMain.on('window-close', (event) => {
 ipcMain.on('refresh-modpacks', async (event) => {
     const updatedModpacks = await getFullModpackList();
     ALL_MODPACKS = updatedModpacks;
-    console.log('Refreshing all modpacks.. Data recieved:', updatedModpacks);
+    console.log('Refreshing all modpacks.. ');
     event.reply('load-modpacks', updatedModpacks);
 });
 
@@ -1085,6 +1306,7 @@ function updateStatus(win, text) {
 }
 
 async function downloadFile(url, outputPath, event) {
+    if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER] Downloading from ${url}`);
     const writer = fs.createWriteStream(outputPath);
 
     const response = await axios({
@@ -1099,10 +1321,9 @@ async function downloadFile(url, outputPath, event) {
 
     const totalBytes = parseInt(response.headers['content-length'], 10);
     let downloadedBytes = 0;
-
     response.data.on('data', (chunk) => {
         downloadedBytes += chunk.length;
-
+        //console.log(`[DOWNLOAD] ${url}: ${downloadedBytes}B`);
         if (event && event.sender) {
             event.sender.send('download-progress', {
                 task: downloadedBytes,
@@ -1116,6 +1337,7 @@ async function downloadFile(url, outputPath, event) {
         writer.on('finish', resolve);
         writer.on('error', (err) => {
             fs.unlink(outputPath, () => reject(err));
+            console.error(err);
         });
         response.data.on('error', reject);
     });

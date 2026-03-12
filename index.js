@@ -295,6 +295,7 @@ window.api.onAppReady(() => {
     loadingScreen.style.opacity = '0';
     mainLayout.style.display = 'flex';
     actionBar.style.display = 'flex';
+    playBtnText.innerHTML = 'GRAJ';
     toggleParticles(particlesCheck.checked);
     setTimeout(() => {
         loadingScreen.style.display = 'none';

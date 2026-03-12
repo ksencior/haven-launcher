@@ -30,5 +30,9 @@ contextBridge.exposeInMainWorld('api', {
     toggleMod: (data) => ipcRenderer.invoke('toggle-mod', data),
     installMod: (data) => ipcRenderer.invoke('install-mod', data),
     uninstallMod: (data) => ipcRenderer.invoke('uninstall-mod', data),
-    getLogHistory: () => ipcRenderer.invoke('get-log-history')
+    getLogHistory: () => ipcRenderer.invoke('get-log-history'),
+    getReadyModpacks: (data) => ipcRenderer.invoke('get-ready-modpacks', data),
+    installReadyModpack: (data) => ipcRenderer.invoke('install-ready-modpack', data),
+    openExternalLink: (link) => ipcRenderer.invoke('open-external-link', link),
+    onModpackDownload: (callback) => ipcRenderer.on('modpack-download', (event, data) => callback(data))
 });

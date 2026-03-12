@@ -8,6 +8,12 @@ const modpacksLoaderGroup = document.getElementById('loaderGroup');
 const modpacksLoaderHint = document.getElementById('loaderHint');
 const modpacksLoadersContainer = document.getElementById('modloaders-items-container');
 
+const downloadModpackBtn = document.getElementById('downloadModpacksBtn');
+const downloadModpackPage = document.getElementById('download-modpack-page');
+const downloadModpackBackBtn = document.getElementById('backFromBrowser');
+const browseModpacksContent = document.getElementById('browse-modpacks-content');
+const browseModpacksInput = document.getElementById('search-ready-modpack');
+
 const modSearchInput = document.getElementById('modSearchInput');
 const modsContainer = document.getElementById('mods-list-container');
 
@@ -488,3 +494,119 @@ function renderModsList(mods, installedMods = []) {
         }
     })
 }
+
+if (downloadModpackBtn) {
+    downloadModpackBtn.onclick = () => {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        downloadModpackPage.classList.add('active');
+
+        loadReadyModpacks();
+    }
+}
+
+if (browseModpacksInput) {
+    browseModpacksInput.oninput = () => {
+        clearTimeout(searchTimeout);
+        const query = browseModpacksInput.value.trim();
+
+        searchTimeout = setTimeout(async () => {
+            loadReadyModpacks(query);
+        }, 500); 
+    }
+}
+
+downloadModpackBackBtn.onclick = () => {
+    document.querySelector('.nav-item.active').click();
+}
+
+async function loadReadyModpacks(query = '') {
+    const container = browseModpacksContent;
+
+    container.innerHTML = '<p>Ładowanie...</p>';
+    try {
+        const modpacks = await window.api.getReadyModpacks({ query: query });
+
+        if (modpacks) {
+            container.innerHTML = '';
+            modpacks.forEach(mp => {
+                if (!mp.latestFilesIndexes[0].modLoader === 1 && !mp.latestFilesIndexes[0].modLoader === 4) return;
+                console.log(mp);
+                const mpDiv = document.createElement('div');
+                mpDiv.className = 'mp-browse-item';
+                mpDiv.dataset.mpId = mp.id;
+
+                const downloads = mp.downloadCount > 1000000 
+                                ? (mp.downloadCount / 1000000).toFixed(1) + 'M' 
+                                : (mp.downloadCount / 1000).toFixed(0) + 'K';
+
+                mpDiv.innerHTML = `
+                    <div class="mp-browse-icon">
+                        <img src="${mp.logo.thumbnailUrl}">
+                    </div>
+                    <div class="mp-browse-info">
+                        <h2>${mp.name}</h2>
+                        <small>${mp.latestFiles[0].gameVersions[0]}</small>
+                        <p>${mp.summary.substring(0, 60)}...</p>
+                        <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads}</span>
+                    </div>
+                    <div class="mp-browse-actions">
+                        <button class='btn-install'>Zainstaluj</button>
+                        <button class='btn-link'>Strona paczki ➜]</button>
+                    </div>
+                `;
+
+                const installBtn    = mpDiv.querySelector('.btn-install');
+                const linkBtn       = mpDiv.querySelector('.btn-link');
+
+                installBtn.onclick = async () => {
+                    installBtn.innerText = 'Instalowanie...';
+                    installBtn.disabled = true;
+                    installBtn.style.opacity = '0.5';
+
+                    const res = await window.api.installReadyModpack(mp);
+
+                    if (res && res.success) {
+                        installBtn.innerText = 'Zainstalowano ✔️';
+                        installBtn.style.background = '#2ecc71';
+                        installBtn.style.borderColor = '#2ecc71';
+                        installBtn.style.opacity = '1';
+                        playBtnText.innerText = 'GRAJ';
+                        window.api.refreshModpacks();
+                    } else {
+                        installBtn.innerText = 'Błąd!';
+                        installBtn.style.background = '#e74c3c';
+                        installBtn.style.opacity = '1';
+                        playBtnText.innerText = 'GRAJ';
+                        console.error("Błąd instalacji:", res?.error);
+                        setTimeout(() => {
+                            installBtn.innerText = 'Zainstaluj';
+                            installBtn.disabled = false;
+                            installBtn.style.background = '';
+                        }, 3000);
+                    }
+                };
+
+                linkBtn.onclick = () => {
+                    if (mp.links && mp.links.websiteUrl) window.api.openExternalLink(mp.links.websiteUrl);
+                }
+
+                container.appendChild(mpDiv);
+            });
+        }
+    } catch (error) {
+        console.log(error);
+        return;
+    }
+}
+
+window.api.onModpackDownload(({ modsDownloaded, modsToDownload, packId }) => {
+    console.log(`ID Paczki: ${packId} | ${modsDownloaded}/${modsToDownload}`);
+    const items = document.querySelectorAll('.mp-browse-item');
+    items.forEach(i => {
+        if (i.dataset.mpId == packId) {
+            const btn = i.querySelector('.btn-install');
+            if (btn) btn.innerText = `${modsDownloaded}/${modsToDownload}`;
+            return;
+        }
+    })
+})

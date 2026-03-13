@@ -355,6 +355,9 @@ modpacksBtnConfirm.onclick = async () => {
             modpacksBtnConfirm.disabled = false;
             modpacksBtnConfirm.innerText = 'Utwórz instancję';
             document.getElementById('newInstanceName').value = '';
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-tools').classList.add('acitve');
+            selectVersion(res.name);
             modpacksBtnClose.click();
         }, 1000);
     } else {

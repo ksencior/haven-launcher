@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('api', {
     createCustomInstance: (data) => ipcRenderer.invoke('create-custom-instance', data),
     refreshModpacks: () => ipcRenderer.send('refresh-modpacks'),
     onLoadingStatus: (callback) => ipcRenderer.on('loading-status', (event, data) => callback(data)),
-    onAppReady: (callback) => ipcRenderer.on('app-ready', () => callback()),
+    onAppReady: (callback) => ipcRenderer.on('app-ready', (event, data) => callback(data)),
     getSystemRam: () => ipcRenderer.invoke('get-system-ram'),
     searchMods: (data) => ipcRenderer.invoke('search-mods', data),
     deleteModpack: (packId) => ipcRenderer.invoke('delete-modpack', packId),
@@ -34,5 +34,6 @@ contextBridge.exposeInMainWorld('api', {
     getReadyModpacks: (data) => ipcRenderer.invoke('get-ready-modpacks', data),
     installReadyModpack: (data) => ipcRenderer.invoke('install-ready-modpack', data),
     openExternalLink: (link) => ipcRenderer.invoke('open-external-link', link),
-    onModpackDownload: (callback) => ipcRenderer.on('modpack-download', (event, data) => callback(data))
+    onModpackDownload: (callback) => ipcRenderer.on('modpack-download', (event, data) => callback(data)),
+    openLogsFolder: () => ipcRenderer.invoke('open-logs-folder')
 });

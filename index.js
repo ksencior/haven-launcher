@@ -154,6 +154,7 @@ window.addEventListener('keydown', (e) => {
     }
 });
 localFilesBtn.onclick = () => window.api.openLocalFiles();
+document.getElementById('openLogsBtn').onclick = () => window.api.openLogsFolder();
 
 function toggleParticles(enabled) {
     const container = document.getElementById('particles-js');
@@ -291,11 +292,12 @@ window.api.onGameClosed(() => {
 window.api.onLoadingStatus((text) => {
     if (loadingText) loadingText.innerText = text;
 });
-window.api.onAppReady(() => {
+window.api.onAppReady((data) => {
     loadingScreen.style.opacity = '0';
     mainLayout.style.display = 'flex';
     actionBar.style.display = 'flex';
     playBtnText.innerHTML = 'GRAJ';
+    document.getElementById('launcherVersion').innerText = `HavenLauncher ${data.appVersion}`;
     toggleParticles(particlesCheck.checked);
     setTimeout(() => {
         loadingScreen.style.display = 'none';

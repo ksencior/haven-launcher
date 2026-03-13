@@ -106,6 +106,19 @@
 
                         <div class="setting-item">
                             <div class="s-info">
+                                <h4>Animowane tło</h4>
+                                <p>Latające cząsteczki w tle launchera.</p>
+                            </div>
+                            <label class="s-control">
+                                <label class="switch">
+                                    <input type="checkbox" id="particlesCheck">
+                                    <span class="slider-round"></span>
+                                </label>
+                            </label>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="s-info">
                                 <h4>Ukryj w zasobniku po uruchomieniu</h4>
                                 <p>Launcher zostanie zminimalizowany do ikony obok zegara systemowego w trakcie gry, aby oszczędzać zasoby komputera.</p>
                             </div>
@@ -142,15 +155,12 @@
 
                         <div class="setting-item">
                             <div class="s-info">
-                                <h4>Animowane tło</h4>
-                                <p>Latające cząsteczki w tle launchera.</p>
+                                <h4>Logi aplikacji</h4>
+                                <p>Przeglądaj zapisane logi działania launchera i gry</p>
                             </div>
-                            <label class="s-control">
-                                <label class="switch">
-                                    <input type="checkbox" id="particlesCheck">
-                                    <span class="slider-round"></span>
-                                </label>
-                            </label>
+                            <div class="s-control">
+                                <button class="btn-small" id="openLogsBtn">Otwórz logi</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -289,8 +299,8 @@
             <h2 id="loading-text">Ładowanie...</h2>
         </div>
     </div>
-    <div style="position: absolute; bottom: 5px; right: 10px; font-size: 10px; color: var(--text-dim); pointer-events: none; z-index: 42069;">
-        HavenLauncher v0.6.0-beta
+    <div id="launcherVersion" style="position: absolute; bottom: 5px; right: 10px; font-size: 10px; color: var(--text-dim); pointer-events: none; z-index: 42069;">
+        HavenLauncher [VERSION]
     </div>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="index.js"></script>

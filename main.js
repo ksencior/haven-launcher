@@ -17,15 +17,15 @@ const { autoUpdater } =                 require('electron-updater');
 /*
 TODO:
 - Poprawa UI dla tworzenia/edytowania paczek (DONE!)
-- Pobieranie gotowych paczek (DONE TODO: do naprawy Forge)
+- Pobieranie gotowych paczek (DONE TODO: do naprawy Forge (DONE tylko nowe wersje do zrobienia))
 - Integracja z modrinchem
-- Pobieranie i wybieranie wersji Javy dla starszych wersji
+- Pobieranie i wybieranie wersji Javy dla starszych wersji (DONE)
 - Wykrywanie zainstalowanych modow w 'sklepie' (DONE!)
 - HavenSync
 - Wlasny mod dla HavenPacka
 - Poprzestawiać kategorie modpacków (DONE)
 - Gdy gracz instaluje moda - launcher powinien sprawdzić jakich bibliotek mod używa i pobiera potrzebne biblioteki (DONE!)
-- Zamiana spacji w nazwie na _ i przycinanie 
+- Zamiana spacji w nazwie na _ i przycinanie (DONE!)
 
 */
 
@@ -84,6 +84,37 @@ let gameProcess;
 let tray = null;
 let logBuffer = [];
 const MAX_LOGS = 1000;
+let logQueue = [];
+let logFlushTimer = null;
+const LOG_FLUSH_INTERVAL_MS = 80;
+const LOG_FLUSH_BATCH = 200;
+const LOG_QUEUE_LIMIT = 5000;
+
+function queueLogToWindow(lines) {
+    if (!lines) return;
+    const incoming = Array.isArray(lines) ? lines : [lines];
+    for (const line of incoming) {
+        if (!line || String(line).trim() === '') continue;
+        logQueue.push(String(line));
+    }
+    if (logQueue.length > LOG_QUEUE_LIMIT) {
+        logQueue.splice(0, logQueue.length - LOG_QUEUE_LIMIT);
+    }
+    if (!logWindow || logWindow.isDestroyed()) return;
+    if (logFlushTimer) return;
+    logFlushTimer = setTimeout(flushLogQueue, LOG_FLUSH_INTERVAL_MS);
+}
+
+function flushLogQueue() {
+    logFlushTimer = null;
+    if (!logWindow || logWindow.isDestroyed()) return;
+    if (logQueue.length === 0) return;
+    const batch = logQueue.splice(0, LOG_FLUSH_BATCH);
+    logWindow.webContents.send('mc-log', batch);
+    if (logQueue.length > 0) {
+        logFlushTimer = setTimeout(flushLogQueue, LOG_FLUSH_INTERVAL_MS);
+    }
+}
 
 // ===== FILE LOGGING SYSTEM =====
 function getTimestamp() {
@@ -591,6 +622,9 @@ function createLogWindow() {
     logWindow.loadFile('logs.html');
     logWindow.webContents.on('did-finish-load', async () => {
         logWindow.webContents.send('load-settings', loadConfig());
+        if (logQueue.length > 0) {
+            flushLogQueue();
+        }
     })
     logWindow.on('closed', () => {logWindow = null;});
 }
@@ -1150,9 +1184,7 @@ function tryAutoDisableModuleConflict(instanceFolder, line) {
                 fs.renameSync(from, to);
                 const msg = `[MODS] Auto-disabled ${file} due to module conflict (${moduleName}). Restart required.`;
                 console.warn(msg);
-                if (logWindow && !logWindow.isDestroyed()) {
-                    logWindow.webContents.send('mc-log', msg);
-                }
+                queueLogToWindow(msg);
                 return true;
             } catch (e) {
                 console.error(`[MODS] Failed to auto-disable ${file}: ${e.message}`);
@@ -1415,9 +1447,7 @@ async function spawnForgeGame(opts) {
                     if (!normalized) return;
                     tryAutoDisableModuleConflict(instanceFolder, normalized);
                     console.log(`[GAME] ${normalized}`);
-                    if (logWindow && !logWindow.isDestroyed()) {
-                        logWindow.webContents.send('mc-log', normalized);
-                    }
+                    queueLogToWindow(normalized);
                 });
             });
             
@@ -1428,9 +1458,7 @@ async function spawnForgeGame(opts) {
                     if (!normalized) return;
                     tryAutoDisableModuleConflict(instanceFolder, normalized);
                     console.error(`[GAME] ${normalized}`);
-                    if (logWindow && !logWindow.isDestroyed()) {
-                        logWindow.webContents.send('mc-log', `[ERROR] ${normalized}`);
-                    }
+                    queueLogToWindow(`[ERROR] ${normalized}`);
                 });
             });
             
@@ -1982,9 +2010,7 @@ ipcMain.on('launch-game', async (event, data) => {
         logBuffer.push(line);
         if (logBuffer.length > MAX_LOGS) logBuffer.shift();
         logToFile(line, 'GAME');
-        if (logWindow && !logWindow.isDestroyed()) {
-            logWindow.webContents.send('mc-log', line);
-        }
+        queueLogToWindow(line);
     }
     const selectedJavaPath = await getJavaPathForLoader(pack.mcVersion, loaderType, event);
     await ensureAssetsForVersion(pack.mcVersion, globalGameRoot, event);
@@ -2073,12 +2099,12 @@ ipcMain.on('launch-game', async (event, data) => {
             }
         }).catch(err => {
             console.error('[GAME-LAUNCH] Launch error:', err);
-            if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER/ERR] ${err.message}`);
+            queueLogToWindow(`[LAUNCHER/ERR] ${err.message}`);
         });
     } catch (err) {
         console.error('[GAME-LAUNCH] Setup error:', err);
         console.error('[GAME-LAUNCH] Error stack:', err?.stack);
-        if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER/ERR] ${err?.message || JSON.stringify(err)}`);
+        queueLogToWindow(`[LAUNCHER/ERR] ${err?.message || JSON.stringify(err)}`);
     }
     const logFile = path.join(
         gameDir,
@@ -2139,17 +2165,17 @@ ipcMain.on('launch-game', async (event, data) => {
         });
 
         launcher.on('close', (code) => {
-        event.reply('game-closed');
-        clearInterval(interval);
-        gameProcess = null;
-        broadcastLog(`[LAUNCHER] Logs saved at ${path.join(gameDir, 'logs')}`);
-        if (win) {
-            win.show();
-        }
-        if(logWindow) {
-            logWindow.show();
-        }
-    });
+            event.reply('game-closed');
+            clearInterval(interval);
+            gameProcess = null;
+            broadcastLog(`[LAUNCHER] Logs saved at ${path.join(gameDir, 'logs')}`);
+            if (win) {
+                win.show();
+            }
+            if(logWindow) {
+                logWindow.show();
+            }
+        });
     }
 });
 
@@ -2775,7 +2801,7 @@ function updateStatus(win, text) {
 }
 
 async function downloadFile(url, outputPath, event) {
-    if (logWindow) logWindow.webContents.send('mc-log', `[LAUNCHER] Downloading from ${url}`);
+    queueLogToWindow(`[LAUNCHER] Downloading from ${url}`);
     const writer = fs.createWriteStream(outputPath);
 
     const response = await axios({
@@ -2792,8 +2818,7 @@ async function downloadFile(url, outputPath, event) {
     let downloadedBytes = 0;
     response.data.on('data', (chunk) => {
         downloadedBytes += chunk.length;
-        //console.log(`[DOWNLOAD] ${url}: ${downloadedBytes}B`);
-        if (event && event.sender) {
+        if (event && event.sender && totalBytes > (25 * 1024 * 1024)) { // > 25 MB
             event.sender.send('download-progress', {
                 task: downloadedBytes,
                 total: totalBytes

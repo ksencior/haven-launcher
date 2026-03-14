@@ -110,12 +110,36 @@ document.getElementById('cancelOfflineBtn').onclick = () => {
     offlineNickInput.value = '';
 };
 document.getElementById('confirmOfflineBtn').onclick = async () => {
-    const nick = offlineNickInput.value.trim();
+    let nick = offlineNickInput.value.trim();
+
+    function showError(msg) {
+        offlineNickInput.style.borderColor = '#e74c3c';
+        offlineNickInput.disabled = true;
+        offlineNickInput.value = msg;
+        setTimeout(() => {
+            offlineNickInput.style.borderColor = '#333';
+            offlineNickInput.disabled = false;
+            offlineNickInput.value = nick;
+        }, 2000);
+    }
     
     if (nick.length < 3) {
-        alert("Nick musi mieć minimum 3 znaki!");
+        showError('Nick musi mieć więcej niż 3 znaki.');
         return;
     }
+    if (String(nick).includes(' ')) {
+        nick = String(nick).replace(' ', '_');
+        offlineNickInput.value = nick;
+    }
+    if (!/^[A-Za-z0-9_]+$/.test(nick)) {
+        showError('Nick może mieć tylko litery, cyfry i _.');
+        return;
+    }
+    if (nick.length > 16) {
+        showError('Nick musi mieć mniej niż 17 znaków.');
+        return;
+    }
+
 
     accounts.forEach(a => a.active = false);
     accounts.push({ type: 'offline', name: nick, active: true, auth: null });

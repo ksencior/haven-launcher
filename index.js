@@ -225,6 +225,7 @@ renderPopularMods();
 let btnParticleEnabled = false;
 window.api.onProgress((data) => {
     playBtn.style.background = '#222';
+    playBtn.disabled = true;
     const percent = Math.round((data.task / data.total) * 100);
     
     if (btnProgress) btnProgress.style.width = `${percent}%`;
@@ -297,7 +298,7 @@ window.api.onAppReady((data) => {
     mainLayout.style.display = 'flex';
     actionBar.style.display = 'flex';
     playBtnText.innerHTML = 'GRAJ';
-    document.getElementById('launcherVersion').innerText = `HavenLauncher ${data.appVersion}`;
+    document.getElementById('launcherVersion').innerText = `${data.appVersion}`;
     toggleParticles(particlesCheck.checked);
     setTimeout(() => {
         loadingScreen.style.display = 'none';

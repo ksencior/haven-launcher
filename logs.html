@@ -167,6 +167,11 @@
     <script>
         const container = document.getElementById('log-container');
         let tyldaEnabled;
+        const pendingLogs = [];
+        let renderTimer = null;
+        const RENDER_INTERVAL_MS = 60;
+        const RENDER_BATCH = 200;
+        const MAX_LOG_LINES = 1000;
 
         function closeLogWindow() {
             if (window.api && window.api.closeLogs) {
@@ -176,7 +181,7 @@
             }
         }
 
-        function appendLogLine(data) {
+        function createLogLineElement(data) {
             const line = document.createElement('div');
             let type = 'info'; 
             let tagText = 'GAME';
@@ -214,21 +219,46 @@
                 <span class="tag ${type}">${tagText}</span>
                 <span class="message">${cleanMsg}</span>
             `;
+            return line;
+        }
+        function flushLogLines() {
+            renderTimer = null;
+            if (pendingLogs.length === 0) return;
 
-            container.appendChild(line);
-
+            const batch = pendingLogs.splice(0, RENDER_BATCH);
+            const fragment = document.createDocumentFragment();
+            for (const msg of batch) {
+                fragment.appendChild(createLogLineElement(msg));
+            }
+            container.appendChild(fragment);
             container.scrollTop = container.scrollHeight;
-
-            if (container.children.length > 1000) {
+            while (container.children.length > MAX_LOG_LINES) {
                 container.removeChild(container.firstChild);
             }
+
+            if (pendingLogs.length > 0) {
+                renderTimer = setTimeout(flushLogLines, RENDER_INTERVAL_MS);
+            }
         }
+
+        function enqueueLogs(data) {
+            if (!data) return;
+            const items = Array.isArray(data) ? data : [data];
+            for (const item of items) {
+                if (!item || String(item).trim() === '') continue;
+                pendingLogs.push(item);
+            }
+            if (!renderTimer) {
+                renderTimer = setTimeout(flushLogLines, RENDER_INTERVAL_MS);
+            }
+        }
+
         window.api.getLogHistory().then(history => {
-            history.forEach(msg => appendLogLine(msg));
+            enqueueLogs(history);
         })
 
         window.api.onLog((data) => {
-            appendLogLine(data);
+            enqueueLogs(data);
         });
 
         window.api.onLoadSettings((config) => {

@@ -17,6 +17,11 @@ const browseModpacksInput = document.getElementById('search-ready-modpack');
 const modSearchInput = document.getElementById('modSearchInput');
 const modsContainer = document.getElementById('mods-list-container');
 
+const processingModal = document.getElementById('processing-modal');
+const processingModalText = processingModal.querySelector('.modal-content-download h2');
+const processingModalProgress = document.getElementById('d-bar-fill');
+const processingModalCancelBtn = document.getElementById('download-cancel-btn');
+
 
 let searchTimeout;
 let currentEditingPack = null;
@@ -574,12 +579,14 @@ async function loadReadyModpacks(query = '') {
                         installBtn.style.borderColor = '#2ecc71';
                         installBtn.style.opacity = '1';
                         playBtnText.innerText = 'GRAJ';
+                        if (processingModal.style.display === 'flex') processingModal.style.display = 'none';
                         window.api.refreshModpacks();
                     } else {
                         installBtn.innerText = 'Błąd!';
                         installBtn.style.background = '#e74c3c';
                         installBtn.style.opacity = '1';
                         playBtnText.innerText = 'GRAJ';
+                        if (processingModal.style.display === 'flex') processingModal.style.display = 'none';
                         console.error("Błąd instalacji:", res?.error);
                         setTimeout(() => {
                             installBtn.innerText = 'Zainstaluj';
@@ -603,13 +610,8 @@ async function loadReadyModpacks(query = '') {
 }
 
 window.api.onModpackDownload(({ modsDownloaded, modsToDownload, packId }) => {
-    console.log(`ID Paczki: ${packId} | ${modsDownloaded}/${modsToDownload}`);
-    const items = document.querySelectorAll('.mp-browse-item');
-    items.forEach(i => {
-        if (i.dataset.mpId == packId) {
-            const btn = i.querySelector('.btn-install');
-            if (btn) btn.innerText = `${modsDownloaded}/${modsToDownload}`;
-            return;
-        }
-    })
-})
+   if (processingModal.style.display === 'none') processingModal.style.display = 'flex';
+   processingModalText.innerText = `Pobieranie paczki... (${modsDownloaded}/${modsToDownload})`; 
+   const percent = Math.round((modsDownloaded / modsToDownload) * 100);
+   processingModalProgress.style.width = `${percent}%`;
+});

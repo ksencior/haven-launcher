@@ -579,6 +579,7 @@ async function loadReadyModpacks(query = '') {
                         installBtn.style.borderColor = '#2ecc71';
                         installBtn.style.opacity = '1';
                         playBtnText.innerText = 'GRAJ';
+                        playBtn.disabled = false;
                         if (processingModal.style.display === 'flex') processingModal.style.display = 'none';
                         window.api.refreshModpacks();
                     } else {

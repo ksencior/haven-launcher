@@ -268,7 +268,7 @@ function spawnBtnParticles() {
     particlesJS("btnParticles", {
         particles: {
             number: { value: 100, density: { enable: true, value_area: 100 } },
-            color: { value: "#ffffff" }, // Twój kolor akcentu
+            color: { value: "#ffffff" },
             shape: { type: "circle" },
             opacity: { value: 0.9, random: true },
             size: { value: 5, random: true },
@@ -287,6 +287,8 @@ window.api.onGameClosed(() => {
     playBtn.disabled = false;
     playBtn.style.background = 'var(--accent)';
     toggleParticles(particlesCheck.checked);
+    destroyBtnParticles();
+    btnParticleEnabled = false;
     serverInterval = setInterval(fetchServerStatus, 10000);
 })
 

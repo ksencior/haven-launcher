@@ -175,7 +175,7 @@
                         <div style="display: flex; justify-content: space-around; align-items: center; margin-bottom: 20px;">
                             <div class="form-group" style="width: 80%;">
                                 <label>Nazwa paczki</label>
-                                <input type="text" id="newInstanceName" maxlength="48" placeholder="Np. Moja Super Przygoda" autocomplete="off">
+                                <input type="text" class="input-bottom-border" id="newInstanceName" maxlength="48" placeholder="Np. Moja Super Przygoda" autocomplete="off">
                             </div>
 
                             <div class="form-group" style="width: 20%;">
@@ -245,9 +245,18 @@
                 <div id="download-modpack-page" class="page">
                     <div class="header-with-back" style="width: 100%;">
                         <button class="btn-outline" id="backFromBrowser">⬅</button>
-                        <div style="display: flex; flex-direction: column; justify-content: center; width: 40%;">
+                        <div style="display: flex; flex-direction: row; justify-content: space-around; width: 80%;">
                             <h2 style="margin-bottom: 5px;">Przeglądaj modpacki</h2>
-                            <input type="text" id="search-ready-modpack">
+                            <input type="text" id="search-ready-modpack" placeholder="Szukaj paczek.." style="
+                            background: none;
+                            min-width: 60%; width: fit-content; max-width: 80%;
+                            border: none;
+                            border-bottom: 1px solid #333;
+                            padding: 12px;
+                            border-radius: 0px;
+                            border-top-left-radius: 6px; border-top-right-radius: 6px;
+                            font-size: 18px;
+                            font-weight: 600;">
                         </div>
                     </div>
                     <div id="browse-modpacks-content">

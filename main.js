@@ -84,6 +84,7 @@ let gameProcess;
 let tray = null;
 let logBuffer = [];
 const MAX_LOGS = 1000;
+const activeDownloads = new Set();
 let logQueue = [];
 let logFlushTimer = null;
 const LOG_FLUSH_INTERVAL_MS = 80;
@@ -550,6 +551,20 @@ function validateConfigs() {
     }
 }
 validateConfigs();
+
+function cleanupPartialDownloads() {
+    if (activeDownloads.size === 0) return;
+    for (const filePath of activeDownloads) {
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (err) {
+            console.warn('[DOWNLOAD CLEANUP] Failed to remove partial file:', filePath, err?.message || err);
+        }
+    }
+    activeDownloads.clear();
+}
 
 function showTrayNotif() {
     if (Notification.isSupported()) {
@@ -1074,42 +1089,6 @@ function normalizeGameLogLine(line) {
     return trimmed;
 }
 
-function disableIncompatibleModsForForge(instanceFolder) {
-    try {
-        const modsDir = path.join(instancesPath, instanceFolder, 'mods');
-        if (!fs.existsSync(modsDir)) return;
-
-        const exceptionPatterns = [
-            /fabric[+._-]?forge/i,
-            /forge[+._-]?fabric/i
-        ];
-
-        const patterns = [
-            /(^|[-_.])quilt([-.]|$)/i,
-            /(^|[-_.])sinytra([-.]|$)/i
-        ];
-
-        const files = fs.readdirSync(modsDir);
-        for (const file of files) {
-            if (!file.endsWith('.jar')) continue;
-            if (file.endsWith('.disabled.jar') || file.endsWith('.jar.disabled')) continue;
-            if (exceptionPatterns.some(p => p.test(file))) continue;
-            if (!patterns.some(p => p.test(file))) continue;
-
-            const from = path.join(modsDir, file);
-            const to = from + '.disabled';
-            try {
-                fs.renameSync(from, to);
-                console.warn(`[MODS] Disabled incompatible mod for Forge: ${file}`);
-            } catch (e) {
-                console.error(`[MODS] Failed to disable ${file}: ${e.message}`);
-            }
-        }
-    } catch (e) {
-        console.error('[MODS] Error while disabling incompatible mods:', e.message);
-    }
-}
-
 function detectNeoForgeMods(instanceFolder) {
     try {
         const modsDir = path.join(instancesPath, instanceFolder, 'mods');
@@ -1256,7 +1235,18 @@ async function spawnForgeGame(opts) {
             if (vanillaProfile) profilesForClasspath.push(vanillaProfile);
             if (baseProfile) profilesForClasspath.push(baseProfile);
             profilesForClasspath.push(profile);
-            const classpath = buildClassPathFromProfiles(profilesForClasspath, gameRoot);
+            let classpath = buildClassPathFromProfiles(profilesForClasspath, gameRoot);
+
+            const isJava8 = typeof javaPath === 'string' && /\\java8\\|jdk8|1\.8/i.test(javaPath);
+            
+            // Fix for ResolutionException (Split Package) on newer Forge (1.17+)
+            if (!isJava8 && mcVersion) {
+                const vanillaJar = path.join(gameRoot, 'versions', mcVersion, `${mcVersion}.jar`);
+                if (classpath.includes(vanillaJar)) {
+                    console.log(`[FORGE-SPAWN] Removing vanilla jar from classpath to prevent split package: ${vanillaJar}`);
+                    classpath = classpath.split(path.delimiter).filter(p => p !== vanillaJar).join(path.delimiter);
+                }
+            }
             console.log(`[FORGE-SPAWN] Classpath built: ${classpath.length} chars`);
             
             console.log(`[FORGE-SPAWN] Constructing command for: ${versionId}`);
@@ -1340,8 +1330,6 @@ async function spawnForgeGame(opts) {
                 ...(forgeArgs || []),
             ];
 
-            // Keep module-path as provided by Forge profile; avoid adding extra jars to prevent module duplication errors.
-            const isJava8 = typeof javaPath === 'string' && /\\java8\\|jdk8|1\.8/i.test(javaPath);
             const filteredJvmArgs = [];
             for (let i = 0; i < jvmArgs.length; i++) {
                 const arg = jvmArgs[i];
@@ -1424,7 +1412,18 @@ async function spawnForgeGame(opts) {
             if (!hasOption('--accessToken')) gameArgs.push('--accessToken', authToken);
             if (!hasOption('--userType')) gameArgs.push('--userType', 'mojang');
             
-            const args = [...filteredJvmArgs, `-cp`, classpath, mainClass, ...gameArgs];
+            const args = [...filteredJvmArgs];
+
+            // Nowszy Forge (1.17+) używa module-path w argumentach profilu.
+            // Wymuszenie pełnego -cp powoduje konflikty (scanning mod candidates crash).
+            const hasClassPath = args.some(x => x === '-cp' || x === '-classpath' || x === '--class-path');
+            const hasModulePath = args.some(x => x === '-p' || x === '--module-path');
+
+            if (!hasClassPath && !hasModulePath) {
+                args.push('-cp', classpath);
+            }
+            
+            args.push(mainClass, ...gameArgs);
             
             console.log(`[FORGE-SPAWN] Spawning Java: ${javaPath}`);
             console.log(`[FORGE-SPAWN] With ${args.length} arguments`);
@@ -1445,7 +1444,7 @@ async function spawnForgeGame(opts) {
                 lines.forEach(line => {
                     const normalized = normalizeGameLogLine(line);
                     if (!normalized) return;
-                    tryAutoDisableModuleConflict(instanceFolder, normalized);
+                    //tryAutoDisableModuleConflict(instanceFolder, normalized);
                     console.log(`[GAME] ${normalized}`);
                     queueLogToWindow(normalized);
                 });
@@ -1456,7 +1455,7 @@ async function spawnForgeGame(opts) {
                 lines.forEach(line => {
                     const normalized = normalizeGameLogLine(line);
                     if (!normalized) return;
-                    tryAutoDisableModuleConflict(instanceFolder, normalized);
+                    //tryAutoDisableModuleConflict(instanceFolder, normalized);
                     console.error(`[GAME] ${normalized}`);
                     queueLogToWindow(`[ERROR] ${normalized}`);
                 });
@@ -1781,6 +1780,8 @@ ipcMain.on('save-settings', (event, data) => {
 })
 
 app.whenReady().then(createWindow);
+app.on('before-quit', cleanupPartialDownloads);
+process.on('exit', cleanupPartialDownloads);
 
 ipcMain.handle('login-microsoft', async (event) => {
     try {
@@ -2015,9 +2016,6 @@ ipcMain.on('launch-game', async (event, data) => {
     const selectedJavaPath = await getJavaPathForLoader(pack.mcVersion, loaderType, event);
     await ensureAssetsForVersion(pack.mcVersion, globalGameRoot, event);
 
-    if (loaderType === 'forge') {
-        disableIncompatibleModsForForge(pack.folderName);
-    }
     const useJava8 = typeof selectedJavaPath === 'string' && /\\java8\\|jdk8|1\.8/i.test(selectedJavaPath);
     const forgeFixArgs = useJava8 ? [] : [
         "--add-opens", "java.base/java.util.concurrent=ALL-UNNAMED",
@@ -2802,7 +2800,9 @@ function updateStatus(win, text) {
 
 async function downloadFile(url, outputPath, event) {
     queueLogToWindow(`[LAUNCHER] Downloading from ${url}`);
-    const writer = fs.createWriteStream(outputPath);
+    const tempPath = `${outputPath}.part`;
+    activeDownloads.add(tempPath);
+    const writer = fs.createWriteStream(tempPath);
 
     const response = await axios({
         url,
@@ -2827,12 +2827,42 @@ async function downloadFile(url, outputPath, event) {
     });
 
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanupTemp = (err) => {
+            if (settled) return;
+            settled = true;
+            try {
+                if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+            } catch (e) {
+                console.warn('[DOWNLOAD CLEANUP] Failed to remove temp file:', tempPath, e?.message || e);
+            }
+            activeDownloads.delete(tempPath);
+            if (err) reject(err);
+        };
+
         response.data.pipe(writer);
-        writer.on('finish', resolve);
-        writer.on('error', (err) => {
-            fs.unlink(outputPath, () => reject(err));
-            console.error(err);
+        writer.on('finish', () => {
+            if (settled) return;
+            try {
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                fs.renameSync(tempPath, outputPath);
+                settled = true;
+                activeDownloads.delete(tempPath);
+                resolve();
+            } catch (err) {
+                cleanupTemp(err);
+            }
         });
-        response.data.on('error', reject);
+        writer.on('error', (err) => {
+            console.error(err);
+            cleanupTemp(err);
+        });
+        response.data.on('error', (err) => {
+            console.error(err);
+            cleanupTemp(err);
+        });
+        response.data.on('aborted', () => {
+            cleanupTemp(new Error('Download aborted'));
+        });
     });
 }

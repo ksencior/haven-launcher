@@ -846,6 +846,18 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     font-weight: 600;
 }
 
+.input-bottom-border {
+    background: none;
+    min-width: 60%; width: fit-content; max-width: 80%;
+    border: none;
+    border-bottom: 1px solid #333;
+    padding: 12px;
+    border-radius: 0px;
+    border-top-left-radius: 6px; border-top-right-radius: 6px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
 .form-group select {
     padding: 12px;
     background: var(--bg-dark);

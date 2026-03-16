@@ -16,13 +16,13 @@ const DiscordRPC =                      require('discord-rpc');
 
 /*
 TODO:
-- Integracja z modrinchem
+- Integracja z modrinchem (DONE!)
 - HavenSync
 - Wlasny mod dla HavenPacka
 - Integracja z Discordem (DONE!)
 - Podtrzymywanie sesji, by nie wygasła (DONE!)
-- Poprawić / Dodać animacje
-- Dodać dźwięki launchera
+- Poprawić / Dodać animacje (DONE!)
+- Dodać dźwięki launchera (DONE!)
 
 */
 
@@ -235,6 +235,7 @@ function initializeLoggingSystem() {
 initializeLoggingSystem();
 // ===== END FILE LOGGING SYSTEM =====
 
+const MODRINTH_API_BASE = 'https://api.modrinth.com/v2';
 const modpacksPath  = path.join(__dirname, 'modpacks.json');
 const MODPACKS      = JSON.parse(fs.readFileSync(modpacksPath, 'utf-8'));
 let USER_MODPACKS;
@@ -1797,6 +1798,182 @@ async function setupNeoForge(version, gameRoot, neoForgeVersion = null, event, j
     }
 }
 
+async function installCurseForgeMod(event, { modId, version, loader, instanceFolder }) {
+    try {
+        const loaderType = loader === 'fabric' ? 4 : (loader === 'forge' ? 1 : 0);
+        const modsPath = path.join(instancesPath, instanceFolder, 'mods');
+        if (!fs.existsSync(modsPath)) fs.mkdirSync(modsPath, { recursive: true });
+
+        const processedMods = new Set();
+        let mainModFileName = null;
+
+        async function downloadModWithDependencies(currentModId, isMainMod = false) {
+            if (processedMods.has(currentModId)) return;
+            processedMods.add(currentModId);
+
+            console.log(`[CF-INSTALL] Szukanie pliku dla moda ID: ${currentModId}, Wersja MC: ${version}, Loader: ${loader}`);
+
+            const res = await axios.get(`https://api.curseforge.com/v1/mods/${currentModId}/files`, {
+                params: {
+                    gameVersion: version,
+                    modLoaderType: loaderType
+                },
+                headers: { 'x-api-key': CF_API_KEY }
+            });
+            const files = res.data.data;
+            if (!files || files.length === 0) {
+                console.warn(`[CF-INSTALL] Nie znaleziono kompatybilnego pliku dla moda CurseForge ID ${currentModId} (MC ${version}, Loader ${loader}).`);
+                return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+            }
+
+            // Priorytetyzuj typ wydania: 1 (Release), potem 2 (Beta), potem 3 (Alpha)
+            const targetFile = files.sort((a, b) => a.releaseType - b.releaseType)[0];
+            if (!targetFile) {
+                console.warn(`[CF-INSTALL] Nie znaleziono odpowiedniego pliku po sortowaniu dla moda CurseForge ID ${currentModId}.`);
+                return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+            }
+
+            let downloadUrl = targetFile.downloadUrl;
+            if (!downloadUrl) {
+                const fileIdStr = targetFile.id.toString();
+                const part1 = fileIdStr.slice(0, 4);
+                const part2 = fileIdStr.slice(4);
+                downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${targetFile.fileName}`;
+            }
+
+            const modFilePath = path.join(modsPath, targetFile.fileName);
+
+            if (isMainMod) {
+                mainModFileName = targetFile.fileName;
+            }
+
+            if (!fs.existsSync(modFilePath)) {
+                console.log(`[CF-INSTALL] Pobieranie ${targetFile.fileName} z CurseForge...`);
+                await downloadFile(downloadUrl, modFilePath, event);
+            } else {
+                console.warn(`[CF-INSTALL] ${targetFile.fileName} już istnieje. Pomijanie pobierania.`);
+            }
+
+            if (targetFile.dependencies && targetFile.dependencies.length > 0) {
+                for (const dep of targetFile.dependencies) {
+                    // RelationType 3 to wymagana zależność
+                    if (dep.relationType === 3 && dep.modId) {
+                        console.log(`[CF-INSTALL] Instalowanie wymaganej zależności (CF ID: ${dep.modId}) dla ${targetFile.fileName}`);
+                        await downloadModWithDependencies(dep.modId, false);
+                    }
+                }
+            }
+        }
+
+        await downloadModWithDependencies(modId, true);
+
+        if (!mainModFileName) {
+            return { success: false, error: 'Brak plików dla głównego moda' };
+        }
+
+        return { success: true, fileName: mainModFileName };
+    } catch (err) {
+        console.error("[CF-INSTALL] Błąd podczas instalacji moda z CurseForge:", err);
+        return { success: false, error: 'Błąd pobierania z CurseForge.' };
+    }
+}
+
+async function installModrinthMod(event, { projectId, mcVersion, loader, instanceFolder }) {
+    try {
+        const modsPath = path.join(instancesPath, instanceFolder, 'mods');
+        if (!fs.existsSync(modsPath)) fs.mkdirSync(modsPath, { recursive: true });
+
+        const processedVersions = new Set();
+        let mainModFileName = null;
+
+        async function downloadModrinthVersionWithDependencies(currentProjectId, isMainMod = false) {
+            if (processedVersions.has(currentProjectId)) return;
+            processedVersions.add(currentProjectId);
+
+            console.log(`[MR-INSTALL] Szukanie pliku dla projektu Modrinth ID: ${currentProjectId}, Wersja MC: ${mcVersion}, Loader: ${loader}`);
+
+            const mrLoader = loader === 'fabric' ? 'fabric' : (loader === 'forge' ? 'forge' : null);
+            const versionParams = {
+                game_versions: [mcVersion],
+                loaders: mrLoader ? [mrLoader] : []
+            };
+
+            const versionsRes = await axios.get(`${MODRINTH_API_BASE}/project/${currentProjectId}/version`, {
+                params: versionParams,
+                headers: { 'User-Agent': 'HavenLauncher/1.0 (ksencior.com)' } // Dobra praktyka
+            });
+            const versions = versionsRes.data;
+
+            if (!versions || versions.length === 0) {
+                console.warn(`[MR-INSTALL] Nie znaleziono kompatybilnej wersji dla projektu Modrinth ID ${currentProjectId} (MC ${mcVersion}, Loader ${loader}).`);
+                return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+            }
+
+            // Priorytetyzuj typ wydania: 'release', potem 'beta', potem 'alpha'
+            const targetVersion = versions.sort((a, b) => {
+                const typeOrder = { 'release': 1, 'beta': 2, 'alpha': 3 };
+                return typeOrder[a.version_type] - typeOrder[b.version_type];
+            })[0];
+
+            if (!targetVersion || !targetVersion.files || targetVersion.files.length === 0) {
+                console.warn(`[MR-INSTALL] Nie znaleziono odpowiedniego pliku po sortowaniu dla projektu Modrinth ID ${currentProjectId}.`);
+                return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
+            }
+
+            // Filtrujemy pliki, aby pobierać tylko pliki .jar, a nie np. .mrpack
+            const jarFiles = targetVersion.files.filter(f => f.filename.endsWith('.jar'));
+
+            if (jarFiles.length === 0) {
+                console.warn(`[MR-INSTALL] Nie znaleziono plików .jar dla wersji Modrinth ${targetVersion.id}. Dostępne pliki: ${targetVersion.files.map(f => f.filename).join(', ')}`);
+                return { success: false, error: 'Brak pliku .jar dla tej wersji moda.' };
+            }
+
+            // Z plików .jar wybieramy główny, a jeśli nie ma, to pierwszy z listy
+            const primaryFile = jarFiles.find(f => f.primary) || jarFiles[0];
+            if (!primaryFile) {
+                // Ten błąd jest mało prawdopodobny, skoro jarFiles.length > 0
+                console.warn(`[MR-INSTALL] Nie znaleziono głównego pliku .jar dla wersji Modrinth ${targetVersion.id}.`);
+                return { success: false, error: 'Brak głównego pliku.' };
+            }
+
+            const downloadUrl = primaryFile.url;
+            const modFilePath = path.join(modsPath, primaryFile.filename);
+
+            if (isMainMod) {
+                mainModFileName = primaryFile.filename;
+            }
+
+            if (!fs.existsSync(modFilePath)) {
+                console.log(`[MR-INSTALL] Pobieranie ${primaryFile.filename} z Modrinth...`);
+                await downloadFile(downloadUrl, modFilePath, event);
+            } else {
+                console.warn(`[MR-INSTALL] ${primaryFile.filename} już istnieje. Pomijanie pobierania.`);
+            }
+
+            if (targetVersion.dependencies && targetVersion.dependencies.length > 0) {
+                for (const dep of targetVersion.dependencies) {
+                    // Typ zależności 'required'
+                    if (dep.dependency_type === 'required' && dep.project_id) {
+                        console.log(`[MR-INSTALL] Instalowanie wymaganej zależności (MR Project ID: ${dep.project_id}) dla ${primaryFile.filename}`);
+                        await downloadModrinthVersionWithDependencies(dep.project_id, false);
+                    }
+                }
+            }
+        }
+
+        await downloadModrinthVersionWithDependencies(projectId, true);
+
+        if (!mainModFileName) {
+            return { success: false, error: 'Brak plików dla głównego moda' };
+        }
+
+        return { success: true, fileName: mainModFileName };
+    } catch (err) {
+        console.error("[MR-INSTALL] Błąd podczas instalacji moda z Modrinth:", err);
+        return { success: false, error: 'Błąd pobierania z Modrinth.' };
+    }
+}
+
 ipcMain.on('save-settings', (event, data) => {
     fs.writeFileSync(configPath, JSON.stringify(data));
 })
@@ -2431,34 +2608,103 @@ ipcMain.handle('get-ready-modpacks', async (event, { query = '' }) => {
     }
 });
 
-ipcMain.handle('search-mods', async (event, {query, mcVersion, loader}) => {
-    console.log(`Searching for ${query} for ${mcVersion} on ${loader}`);
+ipcMain.handle('search-mods', async (event, { query, mcVersion, loader }) => {
+    console.log(`[SEARCH] Wyszukiwanie "${query}" dla MC ${mcVersion} na ${loader}`);
+    const resultsMap = new Map(); // Map<normalizedName, modObject>
+
+    const normalizeModName = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // --- Wyszukiwanie na CurseForge ---
     try {
-        let loaderType;
+        let cfLoaderType;
         if (loader === 'fabric') {
-            loaderType = 4 
+            cfLoaderType = 4;
+        } else if (loader === 'forge') {
+            cfLoaderType = 1;
         } else {
-            loaderType = 1;
+            cfLoaderType = 0; // Nieznany/Vanilla, może nie zwrócić wielu wyników
         }
 
-        const res = await axios.get('https://api.curseforge.com/v1/mods/search', {
+        const cfRes = await axios.get('https://api.curseforge.com/v1/mods/search', {
             params: {
-                gameId: 432,
+                gameId: 432, // Minecraft
                 searchFilter: query,
                 gameVersion: mcVersion,
-                modLoaderType: loaderType,
-                classId: 6,
+                modLoaderType: cfLoaderType,
+                classId: 6, // Mody
                 pageSize: 20,
-                sortField: 2,
+                sortField: 2, // Całkowita liczba pobrań
                 sortOrder: 'desc'
             },
             headers: { 'x-api-key': CF_API_KEY }
         });
-        return res.data.data;
+
+        cfRes.data.data.forEach(mod => {
+            const normalizedName = normalizeModName(mod.name);
+            if (normalizedName) {
+                resultsMap.set(normalizedName, {
+                    source: 'curseforge',
+                    id: mod.id,
+                    name: mod.name,
+                    summary: mod.summary,
+                    downloadCount: mod.downloadCount,
+                    logo: mod.logo?.thumbnailUrl,
+                    links: mod.links,
+                    slug: mod.slug,
+                    mcVersion: mcVersion, // Dodaj dla spójności
+                    loader: loader // Dodaj dla spójności
+                });
+            }
+        });
+        console.log(`[SEARCH] Znaleziono ${cfRes.data.data.length} modów na CurseForge.`);
     } catch (err) {
-        console.error('CF Error:', err);
-        return [];
+        console.error('[SEARCH] Błąd wyszukiwania CurseForge:', err.message);
     }
+
+    // --- Wyszukiwanie na Modrinth ---
+    try {
+        const mrLoader = loader === 'fabric' ? 'fabric' : (loader === 'forge' ? 'forge' : null);
+        const mrParams = {
+            query: query,
+            game_versions: [mcVersion],
+            project_type: 'mod',
+            limit: 20,
+            offset: 0,
+            sort: 'downloads'
+        };
+        if (mrLoader) {
+            mrParams.loaders = [mrLoader];
+        }
+
+        const mrRes = await axios.get(`${MODRINTH_API_BASE}/search`, {
+            params: mrParams,
+            headers: { 'User-Agent': 'HavenLauncher/1.0 (ksencior.com)' } // Dobra praktyka
+        });
+
+        mrRes.data.hits.forEach(mod => {
+            const normalizedName = normalizeModName(mod.title);
+            // Dodaj tylko jeśli nie ma jeszcze moda o tej nazwie (priorytet CurseForge)
+            if (normalizedName && !resultsMap.has(normalizedName)) {
+                resultsMap.set(normalizedName, {
+                    source: 'modrinth',
+                    id: mod.project_id, // Modrinth używa project_id dla samego moda
+                    name: mod.title,
+                    summary: mod.description,
+                    downloadCount: mod.downloads,
+                    logo: mod.icon_url,
+                    links: { websiteUrl: `https://modrinth.com/mod/${mod.slug}` },
+                    slug: mod.slug,
+                    mcVersion: mcVersion, // Dodaj dla spójności
+                    loader: loader // Dodaj dla spójności
+                });
+            }
+        });
+        console.log(`[SEARCH] Znaleziono ${mrRes.data.hits.length} modów na Modrinth.`);
+    } catch (err) {
+        console.error('[SEARCH] Błąd wyszukiwania Modrinth:', err.message);
+    }
+
+    return Array.from(resultsMap.values());
 });
 
 ipcMain.handle('delete-modpack', async (event, packId) => {
@@ -2701,77 +2947,20 @@ ipcMain.handle('install-ready-modpack', async (event, packData) => {
     }
 });
 
-ipcMain.handle('install-mod', async (event, { modId, version, loader, instanceFolder }) => {
-    try {
-        const loaderType = loader === 'fabric' ? 4 : (loader=== 'forge' ? 1 : 0);
-        const modsPath = path.join(instancesPath, instanceFolder, 'mods');
-        if (!fs.existsSync(modsPath)) fs.mkdirSync(modsPath, { recursive: true });
-
-        const processedMods = new Set();
-        let mainModFileName = null;
-
-        async function downloadModWithDependencies(currentModId, isMainMod = false) {
-            if (processedMods.has(currentModId)) return;
-            processedMods.add(currentModId);
-
-            console.log('Szukanie biblioteki o id:', currentModId);
-
-            const res = await axios.get(`https://api.curseforge.com/v1/mods/${currentModId}/files`, {
-                params: {
-                    gameVersion: version,
-                    modLoaderType: loaderType
-                },
-                headers: { 'x-api-key': CF_API_KEY }
-            });
-            const files = res.data.data;
-            if (!files || files.length === 0) {
-                return { success: false, error: 'Brak kompatybilnej wersji pliku.' };
-            }
-
-            const targetFile = files[0];
-            let downloadUrl = targetFile.downloadUrl;
-
-            if (!downloadUrl) {
-                const fileIdStr = targetFile.id.toString();
-                const part1 = fileIdStr.slice(0, 4);
-                const part2 = fileIdStr.slice(4);
-                downloadUrl = `https://edge.forgecdn.net/files/${part1}/${part2}/${targetFile.fileName}`;
-            }
-
-            const modFilePath = path.join(modsPath, targetFile.fileName);
-
-            if (isMainMod) {
-                mainModFileName = targetFile.fileName;
-            }
-
-            if (!fs.existsSync(modFilePath)) {
-                await downloadFile(downloadUrl, modFilePath, event);
-            } else {
-                console.warn(`${targetFile.fileName} already exists. Skipping..`);
-            }
-
-            if (targetFile.dependencies && targetFile.dependencies.length > 0) {
-                for (const dep of targetFile.dependencies) {
-                    if (dep.relationType === 3 && dep.modId) {
-                        console.log('Installing dependency:', dep.modId);
-                        await downloadModWithDependencies(dep.modId, false);
-                    }
-                }
-            }
-        }
-
-        await downloadModWithDependencies(modId, true);
-
-        if (!mainModFileName) {
-            return { success: false, error: 'Brak plikow dla glownego moda' };
-        }
-
-        return { success: true, fileName: mainModFileName };
-    } catch (err) {
-        console.error("Błąd podczas instalacji moda:", err);
-        return { success: false, error: 'Błąd pobierania.' };
+ipcMain.handle('install-mod', async (event, { source, modId, version, loader, instanceFolder }) => {
+    if (source === 'curseforge') {
+        return installCurseForgeMod(event, { modId, version, loader, instanceFolder });
+    } else if (source === 'modrinth') {
+        // Dla Modrinth, modId z frontendu to project_id, a version to mcVersion
+        return installModrinthMod(event, { projectId: modId, mcVersion: version, loader, instanceFolder });
+    } else {
+        console.error(`[INSTALL] Nieznane źródło moda: ${source}`);
+        return { success: false, error: 'Nieznane źródło moda.' };
     }
 });
+
+// Nowy handler IPC dla instalacji modów z Modrinth
+ipcMain.handle('install-modrinth-mod', installModrinthMod);
 
 ipcMain.handle('uninstall-mod', async (event, { instanceFolder, fileName }) => {
     try {

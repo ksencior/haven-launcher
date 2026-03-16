@@ -426,8 +426,7 @@ function renderModsList(mods, installedMods = []) {
         const modCard = document.createElement('div');
         modCard.className = 'mod-card';
         
-        const logoUrl = mod.links && mod.links.websiteUrl ? 
-                        `https://www.curseforge.com/api/v1/mods/${mod.id}/logo` : '';
+        const iconUrl = mod.logo || 'https://i.imgur.com/83uE76H.png';
 
         const downloads = mod.downloadCount > 1000000 
             ? (mod.downloadCount / 1000000).toFixed(1) + 'M' 
@@ -436,7 +435,7 @@ function renderModsList(mods, installedMods = []) {
         const slug = mod.slug ? mod.slug.toLowerCase() : mod.name.toLowerCase().replace(/\s+/g, '-');
         const firstWord = mod.name.toLowerCase().split(' ')[0];
 
-        const isInstalled = installedMods.some(installed => {
+        const isInstalled = installedMods.some(installed => { // Ta logika może wymagać dopracowania dla modów z Modrinth
             const fname = installed.filename.toLowerCase();
             return fname.includes(slug) || fname.includes(firstWord);
         })
@@ -450,7 +449,7 @@ function renderModsList(mods, installedMods = []) {
 
         modCard.innerHTML = `
             <div class="m-icon">
-                <img src="${mod.logo?.thumbnailUrl || 'https://i.imgur.com/83uE76H.png'}">
+                <img src="${iconUrl}">
             </div>
             <div class="m-info">
                 <div style="display:flex; flex-direction: column;">
@@ -458,7 +457,7 @@ function renderModsList(mods, installedMods = []) {
                     <p style="font-size: 11px; color: gray;">${mod.summary.substring(0, 60)}...</p>
                 </div>
                 <div style="display:flex; flex-direction: column;">
-                    <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads}</span>
+                    <span style="font-size:10px; color:var(--accent); font-weight:bold;">📥 ${downloads} (${mod.source === 'curseforge' ? 'CF' : 'MR'})</span>
                     ${btnHtml}
                 </div>
             </div>
@@ -473,6 +472,7 @@ function renderModsList(mods, installedMods = []) {
             installBtn.style.opacity = '0.5';
 
             const data = {
+                source: mod.source, // Przekaż źródło moda (curseforge/modrinth)
                 modId: mod.id,
                 version: currentEditingPack.mcVersion,
                 loader: currentEditingPack.loader,

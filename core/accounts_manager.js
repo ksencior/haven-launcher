@@ -1,24 +1,61 @@
 async function initAccounts() {
     try {
         accounts = await window.api.getAccounts() || [];
+        let changed = false;
+        accounts = accounts.map(acc => {
+            const updated = ensureAccountId(acc);
+            if (updated !== acc) changed = true;
+            return updated;
+        });
         activeAccount = accounts.find(acc => acc.active) || accounts[0] || null;
+        window.activeAccount = activeAccount || null;
+        if (changed) await window.api.saveAccounts(accounts);
         updateSidebarUI();
     } catch (e) { console.error("Błąd ładowania kont:", e); }
 }
 initAccounts();
 
+function generateLocalId() {
+    try {
+        if (crypto?.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return `loc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function ensureAccountId(account) {
+    if (!account || account.accountId) return account;
+    const acc = { ...account };
+    if (acc.type === "premium") {
+        acc.accountId = acc.auth?.uuid || acc.auth?.profile?.id || acc.auth?.id || generateLocalId();
+    } else {
+        acc.accountId = generateLocalId();
+    }
+    return acc;
+}
+
 function updateSidebarUI() {
+    let username = 'Steve';
+    let accountId = null;
+    let accountType = null;
     if (activeAccount) {
+        username = activeAccount.name;
+        accountId = activeAccount.accountId || null;
+        accountType = activeAccount.type || null;
+        window.activeAccount = activeAccount;
         sidebarNick.innerText = activeAccount.name;
         welcomeText.innerText = `Hej, ${activeAccount.name}`;
         welcomeSubText.innerText = 'Miło nam, że wróciłeś!';
         sidebarSkin.src = `https://minotar.net/helm/${activeAccount.name}/32.png`;
     } else {
+        username = 'Steve';
         sidebarNick.innerText = "Logowanie";
         welcomeText.innerText = `Witaj w świecie Haven!`;
         welcomeSubText.innerText = 'Zaloguj się i ciesz się grą!';
         sidebarSkin.src = `https://minotar.net/helm/Steve/32.png`;
     }
+    const event = new CustomEvent('accountChanged', { detail: { username, accountId, accountType } });
+    document.dispatchEvent(event);
+    window.dispatchEvent(event);
 }
 
 const closeModal = () => {
@@ -69,6 +106,7 @@ async function selectAccount(index) {
     accounts.forEach(a => a.active = false);
     accounts[index].active = true;
     activeAccount = accounts[index];
+    window.activeAccount = activeAccount;
     await window.api.saveAccounts(accounts);
     updateSidebarUI();    
     closeModal();
@@ -80,6 +118,7 @@ async function deleteAccount(index) {
         if (!accounts.some(a => a.active)) accounts[0].active = true;
     }
     activeAccount = accounts.find(a => a.active) || null;
+    window.activeAccount = activeAccount || null;
     await window.api.saveAccounts(accounts);
     updateSidebarUI();
     renderAccountsList();
@@ -89,6 +128,7 @@ window.selectAccount = async (index) => {
     accounts.forEach(a => a.active = false);
     accounts[index].active = true;
     activeAccount = accounts[index];
+    window.activeAccount = activeAccount;
     await window.api.saveAccounts(accounts);
     updateSidebarUI();
     renderAccountsList();
@@ -98,6 +138,7 @@ window.deleteAccount = async (index) => {
     accounts.splice(index, 1);
     if (accounts.length > 0) accounts[0].active = true;
     activeAccount = accounts.find(a => a.active) || null;
+    window.activeAccount = activeAccount || null;
     await window.api.saveAccounts(accounts);
     updateSidebarUI();
     renderAccountsList();
@@ -146,8 +187,9 @@ document.getElementById('confirmOfflineBtn').onclick = async () => {
 
 
     accounts.forEach(a => a.active = false);
-    accounts.push({ type: 'offline', name: nick, active: true, auth: null });
+    accounts.push({ type: 'offline', name: nick, active: true, auth: null, accountId: generateLocalId() });
     activeAccount = accounts[accounts.length - 1];
+    window.activeAccount = activeAccount;
 
     await window.api.saveAccounts(accounts);
 
@@ -168,8 +210,9 @@ document.getElementById('addPremiumBtn').onclick = async () => {
 
     if (authData) {
         accounts.forEach(a => a.active = false);
-        accounts.push({ type: 'premium', name: authData.name, active: true, auth: authData });
+        accounts.push({ type: 'premium', name: authData.name, active: true, auth: authData, accountId: (authData.uuid || authData.profile?.id || authData.id || generateLocalId()) });
         activeAccount = accounts[accounts.length - 1];
+        window.activeAccount = activeAccount;
         await window.api.saveAccounts(accounts);
         updateSidebarUI();
         renderAccountsList();

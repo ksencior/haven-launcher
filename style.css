@@ -1200,6 +1200,73 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     transition: 0.1s;
 }
 
+.skins-grid {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+
+}
+
+#skin_container {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 400px;
+    outline: none;
+    cursor: grab; /* Można obracać myszką! */
+}
+
+#skin_container:active {
+    cursor: grabbing;
+}
+
+.skin-card {
+    background: radial-gradient(circle, rgba(185, 41, 185, 0.1) 0%, rgba(22, 22, 22, 0) 70%);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden; /* Żeby render nie wystawał poza zaokrąglenia */
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 200px;
+}
+
+.upload-area {
+    border: 2px dashed rgba(185, 41, 185, 0.3);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.upload-area:hover, .upload-area.dragover {
+    border-color: var(--accent);
+    background: rgba(185, 41, 185, 0.05);
+}
+
+.upload-area i {
+    font-size: 40px;
+    color: var(--accent);
+    margin-bottom: 15px;
+}
+
+.skin-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+.status-msg {
+    margin-top: 15px;
+    font-size: 13px;
+    text-align: center;
+}
+
 @keyframes loading-anim {
     0% {
         scale: 1;

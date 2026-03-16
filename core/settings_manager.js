@@ -21,6 +21,7 @@ function getCurrentSettings() {
 }
 
 window.api.onLoadSettings((config) => {
+    window.launcherId = config.launcherId || window.launcherId;
     ramSlider.value = config.ram;
     if (config.ram) ramChanged = true; 
     ramVal.innerHTML = config.ram + "GB";

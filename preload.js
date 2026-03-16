@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
     pingServer: (ip) => ipcRenderer.invoke('ping-server', ip),
     onLoadModpacks: (callback) => ipcRenderer.on('load-modpacks', (event, data) => callback(data)),
     loginMicrosoft: () => ipcRenderer.invoke('login-microsoft'),
+    getConfig: () => ipcRenderer.invoke('get-config'),
     getAccounts: () => ipcRenderer.invoke('get-accounts'),
     saveAccounts: (accounts) => ipcRenderer.invoke('save-accounts', accounts),
     openLocalFiles: () => ipcRenderer.send('open-local-files'),
@@ -37,6 +38,5 @@ contextBridge.exposeInMainWorld('api', {
     onModpackDownload: (callback) => ipcRenderer.on('modpack-download', (event, data) => callback(data)),
     openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
     onAuthRefreshFailed: (callback) => ipcRenderer.on('auth-refresh-failed', () => callback()),
-    searchModrinthMods: (data) => ipcRenderer.invoke('search-modrinth-mods', data), // Nowy handler do wyszukiwania modów na Modrinth
-    installModrinthMod: (data) => ipcRenderer.invoke('install-modrinth-mod', data) // Nowy handler do instalacji modów z Modrinth
+    installModrinthMod: (data) => ipcRenderer.invoke('install-modrinth-mod', data)
 });

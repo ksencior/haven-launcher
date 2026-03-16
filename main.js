@@ -3,6 +3,7 @@ const path =                            require('path');
 const os =                              require('os');
 const fs =                              require('fs');
 const net =                             require('net');
+const crypto =                          require('crypto');
 const axios =                           require('axios');
 const AdmZip =                          require('adm-zip');
 const { Client, Authenticator } =       require('minecraft-launcher-core');
@@ -16,13 +17,10 @@ const DiscordRPC =                      require('discord-rpc');
 
 /*
 TODO:
-- Integracja z modrinchem (DONE!)
 - HavenSync
 - Wlasny mod dla HavenPacka
-- Integracja z Discordem (DONE!)
-- Podtrzymywanie sesji, by nie wygasła (DONE!)
-- Poprawić / Dodać animacje (DONE!)
-- Dodać dźwięki launchera (DONE!)
+- Skiny i pelerynki (HALF DONE)
+- Zrobić tak aby dla graczy na launcherze to skiny ustawione na launcherze tez sie wyswietlaly
 
 */
 
@@ -528,11 +526,28 @@ function saveAccounts(accounts) {
     fs.writeFileSync(accountsPath, JSON.stringify(accounts, null, 4));
 }
 
+function generateLauncherId() {
+    try {
+        if (crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function ensureLauncherId(config) {
+    if (!config.launcherId) {
+        config.launcherId = generateLauncherId();
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
+    }
+    return config;
+}
+
 function loadConfig() {
     if (fs.existsSync(configPath)) {
-        return JSON.parse(fs.readFileSync(configPath));
+        const cfg = JSON.parse(fs.readFileSync(configPath));
+        return ensureLauncherId(cfg);
     }
-    return {nick: '', ram: 4, version: '1.21.10'};
+    const cfg = {nick: '', ram: 4, version: '1.21.10'};
+    return ensureLauncherId(cfg);
 }
 
 function createTray(win) {
@@ -559,14 +574,16 @@ function validateConfigs() {
         tyldaConsole: false, 
         particlesEnabled: true,
         soundsEnabled: true,
-        version: 'HavenPack 1.20.4' 
+        version: 'HavenPack 1.20.4',
+        launcherId: generateLauncherId()
     };
 
     if (!fs.existsSync(configPath)) {
         fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 4));
     } else {
         try {
-            JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            ensureLauncherId(cfg);
         } catch (e) {
             // Jeśli plik jest uszkodzony (np. nagłe wyłączenie kompa), nadpisz domyślnym
             fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 4));
@@ -1975,7 +1992,18 @@ async function installModrinthMod(event, { projectId, mcVersion, loader, instanc
 }
 
 ipcMain.on('save-settings', (event, data) => {
-    fs.writeFileSync(configPath, JSON.stringify(data));
+    try {
+        const current = loadConfig();
+        const merged = {
+            ...current,
+            ...data,
+            launcherId: current.launcherId || data.launcherId
+        };
+        fs.writeFileSync(configPath, JSON.stringify(merged, null, 4));
+    } catch (e) {
+        console.error('[CONFIG] Failed to save settings:', e);
+        fs.writeFileSync(configPath, JSON.stringify(data, null, 4));
+    }
 })
 
 app.whenReady().then(() => {
@@ -2237,7 +2265,7 @@ ipcMain.on('launch-game', async (event, data) => {
                 if (!fs.existsSync(instancesPath)) fs.mkdirSync(instancesPath, {recursive: true});
 
                 const zipPath = path.join(instancesPath, pack.zipName);
-                const downloadUrl = `https://havenmine.pl/launcher/api/${pack.zipName}`;
+                const downloadUrl = `https://havenmine.pl/havenlauncher/api/packs/${pack.zipName}`;
 
                 try {
                     await downloadFile(downloadUrl, zipPath, event);
@@ -2437,6 +2465,10 @@ ipcMain.on('launch-game', async (event, data) => {
 
 ipcMain.handle('get-accounts', () => {
     return getAccounts();
+});
+
+ipcMain.handle('get-config', () => {
+    return loadConfig();
 });
 
 ipcMain.handle('save-accounts', (event, accounts) => {

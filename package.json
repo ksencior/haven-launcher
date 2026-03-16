@@ -1,6 +1,6 @@
 {
   "name": "havenlauncher",
-  "version": "0.6.3-beta",
+  "version": "0.7.0-beta",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,6 +13,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",
+    "discord-rpc": "^4.0.1",
     "dotenv": "^17.3.1",
     "electron-updater": "^6.8.3",
     "minecraft-launcher-core": "^3.18.2",

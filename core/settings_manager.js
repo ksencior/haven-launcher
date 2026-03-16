@@ -15,7 +15,8 @@ function getCurrentSettings() {
         minimizeToTray: trayCheck.checked,
         version: selectedPack,
         tyldaConsole: tyldaCheck.checked,
-        particlesEnabled: particlesCheck.checked
+        particlesEnabled: particlesCheck.checked,
+        soundsEnabled: soundsCheck.checked
     }
 }
 
@@ -26,6 +27,7 @@ window.api.onLoadSettings((config) => {
     trayCheck.checked = config.minimizeToTray || false;
     tyldaCheck.checked = config.tyldaConsole || false;
     particlesCheck.checked = config.particlesEnabled || true;
+    soundsCheck.checked = config.soundsEnabled || true;
     if (config.version != null) {
         selectedPack = config.version;
     } else {

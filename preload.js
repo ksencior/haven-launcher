@@ -35,5 +35,6 @@ contextBridge.exposeInMainWorld('api', {
     installReadyModpack: (data) => ipcRenderer.invoke('install-ready-modpack', data),
     openExternalLink: (link) => ipcRenderer.invoke('open-external-link', link),
     onModpackDownload: (callback) => ipcRenderer.on('modpack-download', (event, data) => callback(data)),
-    openLogsFolder: () => ipcRenderer.invoke('open-logs-folder')
+    openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+    onAuthRefreshFailed: (callback) => ipcRenderer.on('auth-refresh-failed', () => callback())
 });

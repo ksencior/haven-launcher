@@ -12,26 +12,47 @@ const { execSync, exec, spawn, spawnSync } =       require('child_process');
 const ut =                              require('util');
 const { autoUpdater } =                 require('electron-updater');
                                         require('dotenv').config();
-// ---
+const DiscordRPC =                      require('discord-rpc');
 
 /*
 TODO:
-- Poprawa UI dla tworzenia/edytowania paczek (DONE!)
-- Pobieranie gotowych paczek (DONE TODO: do naprawy Forge (DONE tylko nowe wersje do zrobienia))
 - Integracja z modrinchem
-- Pobieranie i wybieranie wersji Javy dla starszych wersji (DONE)
-- Wykrywanie zainstalowanych modow w 'sklepie' (DONE!)
 - HavenSync
 - Wlasny mod dla HavenPacka
-- Poprzestawiać kategorie modpacków (DONE)
-- Gdy gracz instaluje moda - launcher powinien sprawdzić jakich bibliotek mod używa i pobiera potrzebne biblioteki (DONE!)
-- Zamiana spacji w nazwie na _ i przycinanie (DONE!)
+- Integracja z Discordem (DONE!)
+- Podtrzymywanie sesji, by nie wygasła (DONE!)
+- Poprawić / Dodać animacje
+- Dodać dźwięki launchera
 
 */
 
 const launcher = new Client();
 const CF_API_KEY = process.env.CF_API_KEY || app.getAppMetrics()[0]?.context?.CF_API_KEY || require('./package.json').CF_API_KEY;
 const execPromise = ut.promisify(exec);
+
+const DISCORD_CLIENT_ID = '1482869286241566740';
+let rpcClient;
+
+function initDiscordRPC() {
+    rpcClient = new DiscordRPC.Client({ transport: 'ipc' });
+    rpcClient.on('ready', () => {
+        setDiscordActivity('W menu', 'Przegląda paczki');
+        console.log('Discord initialized. ID:', DISCORD_CLIENT_ID);
+    });
+    rpcClient.login({ clientId: DISCORD_CLIENT_ID }).catch(e => console.warn('Discord RPC Warning:', e.message));
+}
+
+function setDiscordActivity(state, details, startTimestamp = new Date()) {
+    if (!rpcClient) return;
+    rpcClient.setActivity({
+        details: details,
+        state: state,
+        startTimestamp,
+        largeImageKey: 'logo',
+        largeImageText: 'HavenLauncher',
+        instance: false,
+    }).catch(() => {});
+}
 
 let LAUNCHER_PATH;
 if (process.platform === 'win32') {
@@ -536,6 +557,7 @@ function validateConfigs() {
         minimizeToTray: false, 
         tyldaConsole: false, 
         particlesEnabled: true,
+        soundsEnabled: true,
         version: 'HavenPack 1.20.4' 
     };
 
@@ -1779,7 +1801,10 @@ ipcMain.on('save-settings', (event, data) => {
     fs.writeFileSync(configPath, JSON.stringify(data));
 })
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createWindow();
+    initDiscordRPC();
+});
 app.on('before-quit', cleanupPartialDownloads);
 process.on('exit', cleanupPartialDownloads);
 
@@ -1791,7 +1816,15 @@ ipcMain.handle('login-microsoft', async (event) => {
 
         const token = await xboxManager.getMinecraft();
 
-        return token.mclc();
+        const mclcData = token.mclc();
+        const refreshToken = token.getToken()?.refresh;
+
+        if (!refreshToken) {
+            console.error("[AUTH] Błąd logowania: Nie udało się uzyskać refresh tokenu z MSMC.");
+            return null;
+        }
+
+        return { ...mclcData, refreshToken: refreshToken };
     } catch (err) {
         console.error('Microsoft login error:', err);
         return null;
@@ -1812,12 +1845,57 @@ ipcMain.on('launch-game', async (event, data) => {
     let finalAuth;
     if (data.premiumAuth) {
         finalAuth = data.premiumAuth;
+
+        // Auto-refresh tokenu jeśli jest dostępny refreshToken
+        if (finalAuth.refreshToken) {
+            try {
+                console.log("[AUTH] Próba odświeżenia sesji przy użyciu refresh tokenu...");
+                const authManager = new Auth("select_account");
+                const xboxManager = await authManager.refresh(finalAuth.refreshToken);
+                const newToken = await xboxManager.getMinecraft();
+                
+                const newMclcData = newToken.mclc();
+                // Używamy publicznej metody biblioteki, aby uzyskać token odświeżania
+                const newRefreshToken = newToken.getToken()?.refresh;
+
+                if (!newRefreshToken) {
+                    // Jeśli Microsoft z jakiegoś powodu nie zwróci nowego refresh tokenu, zachowajmy stary.
+                    // To mało prawdopodobne, ale zabezpiecza przed utratą możliwości odświeżania.
+                    console.warn("[AUTH] Odpowiedź odświeżania nie zawierała nowego refresh tokenu. Używam starego.");
+                    finalAuth = { ...newMclcData, refreshToken: finalAuth.refreshToken };
+                } else {
+                    finalAuth = { ...newMclcData, refreshToken: newRefreshToken };
+                }
+
+                // Aktualizacja w pliku accounts.json
+                const accounts = getAccounts();
+                const idx = accounts.findIndex(acc => acc.auth && acc.auth.uuid === finalAuth.uuid);
+                if (idx !== -1) {
+                    accounts[idx].auth = finalAuth;
+                    accounts[idx].name = finalAuth.name;
+                    saveAccounts(accounts);
+                    console.log("[AUTH] Sesja odświeżona pomyślnie. Zapisano nowy token.");
+                }
+            } catch (e) {
+                console.warn("[AUTH] Nie udało się odświeżyć sesji:", e?.message || JSON.stringify(e));
+                // Powiadom renderer o błędzie i przerwij uruchamianie
+                event.sender.send('auth-refresh-failed');
+                return;
+            }
+        }
+        // Jeśli konto premium nie ma refreshToken, to jest to stary format zapisu.
+        // Poinformuj użytkownika, że musi się zalogować ponownie.
+        else if (finalAuth.msmc || !finalAuth.refreshToken) {
+            console.warn("[AUTH] Wykryto stary format zapisu konta. Wymagane ponowne zalogowanie.");
+            event.sender.send('auth-refresh-failed');
+            return;
+        }
     } else {
         finalAuth = Authenticator.getAuth(data.user);
     }
     
-    console.log('[GAME-LAUNCH] finalAuth:', finalAuth);
-    console.log('[GAME-LAUNCH] finalAuth.profile:', finalAuth?.profile);
+    //console.log('[GAME-LAUNCH] finalAuth:', finalAuth);
+    //console.log('[GAME-LAUNCH] finalAuth.profile:', finalAuth?.profile);
 
     if (!pack) {
         console.error('Could not find definition for', data.version);
@@ -2076,7 +2154,8 @@ ipcMain.on('launch-game', async (event, data) => {
             gameProcess = child;
             console.log("Proces gry przypisany pomyslnie:", child.pid);
 
-            // Add close listener for both MCLC and Forge processes
+            setDiscordActivity('W grze', `${packName}`, new Date());
+
             child.on('close', (code) => {
                 event.reply('game-closed');
                 clearInterval(interval);
@@ -2088,6 +2167,8 @@ ipcMain.on('launch-game', async (event, data) => {
                 if(logWindow) {
                     logWindow.show();
                 }
+
+                setDiscordActivity('W menu', 'Przegląda paczki');
             });
 
             if (data.minimizeToTray) {
@@ -2603,39 +2684,6 @@ ipcMain.handle('install-ready-modpack', async (event, packData) => {
                 const modOutputPath = path.join(modsFolder, modFile.fileName);
                 if (!fs.existsSync(modOutputPath)) {
                     await downloadFile(modDownloadUrl, modOutputPath);
-                }
-
-                // If this is a Forge pack but a NeoForge jar sneaks in, auto-download Forge variant
-                if (loaderType === 'forge' && /(^|[-_.])neoforge([-.]|$)/i.test(modFile.fileName)) {
-                    let forgeFile = forgeReplacementCache.get(modData.projectID);
-                    if (!forgeFile) {
-                        forgeFile = await findForgeReplacementForProject(modData.projectID, mcVersion);
-                        forgeReplacementCache.set(modData.projectID, forgeFile);
-                    }
-
-                    if (forgeFile?.fileName && !/neoforge/i.test(forgeFile.fileName)) {
-                        let forgeDownloadUrl = forgeFile.downloadUrl;
-                        if (!forgeDownloadUrl) {
-                            const fidStr = forgeFile.id.toString();
-                            forgeDownloadUrl = `https://edge.forgecdn.net/files/${fidStr.slice(0, 4)}/${fidStr.slice(4)}/${forgeFile.fileName}`;
-                        }
-                        const forgeOutputPath = path.join(modsFolder, forgeFile.fileName);
-                        if (!fs.existsSync(forgeOutputPath)) {
-                            await downloadFile(forgeDownloadUrl, forgeOutputPath);
-                            console.log(`[INSTALL-MODPACK] Replaced NeoForge mod with Forge variant: ${forgeFile.fileName}`);
-                        }
-
-                        if (fs.existsSync(modOutputPath) && !modOutputPath.endsWith('.disabled')) {
-                            try {
-                                fs.renameSync(modOutputPath, modOutputPath + '.disabled');
-                                console.warn(`[INSTALL-MODPACK] Disabled NeoForge mod for Forge pack: ${modFile.fileName}`);
-                            } catch (e) {
-                                console.error(`[INSTALL-MODPACK] Failed to disable ${modFile.fileName}: ${e.message}`);
-                            }
-                        }
-                    } else {
-                        console.warn(`[INSTALL-MODPACK] No Forge variant found for NeoForge mod: ${modFile.fileName}`);
-                    }
                 }
                 modsDownloaded++;
                 win.webContents.send('modpack-download', { modsDownloaded, modsToDownload, packId });

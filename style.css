@@ -140,6 +140,18 @@ body {
     cursor: pointer;
     transition: 0.3s;
     color: var(--text-dim);
+    overflow: hidden;
+}
+
+.nav-item span {
+    transition: 0.2s;
+    scale: 1;
+    transform: rotateY(0);
+}
+
+.nav-item:hover span {
+    scale: 1.2;
+    transform: rotateZ(-5deg);
 }
 
 .nav-item:hover, .nav-item.active {

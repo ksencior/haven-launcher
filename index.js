@@ -20,7 +20,8 @@ const ramVal = document.getElementById('ramVal');
 const trayCheck = document.getElementById('trayCheck');
 const tyldaCheck = document.getElementById('tyldaCheck');
 const localFilesBtn = document.getElementById('openLocalFiles');
-const particlesCheck = document.getElementById('particlesCheck')
+const particlesCheck = document.getElementById('particlesCheck');
+const soundsCheck = document.getElementById('soundsCheck');
 
 const accountModal = document.getElementById('accountModal');
 const accountsList = document.getElementById('accountsList');
@@ -300,7 +301,7 @@ window.api.onAppReady((data) => {
     mainLayout.style.display = 'flex';
     actionBar.style.display = 'flex';
     playBtnText.innerHTML = 'GRAJ';
-    document.getElementById('launcherVersion').innerText = `${data.appVersion}`;
+    document.getElementById('launcherVersion').innerText = `v${data.appVersion}`;
     toggleParticles(particlesCheck.checked);
     setTimeout(() => {
         loadingScreen.style.display = 'none';
@@ -340,3 +341,38 @@ if (searchInput) {
         });
     });
 }
+
+window.api.onAuthRefreshFailed(() => {
+    // Resetuj stan przycisku GRAJ
+    playBtnText.innerText = 'GRAJ';
+    playBtn.disabled = false;
+    playBtn.style.background = 'var(--accent)';
+    if (btnProgress) btnProgress.style.width = `0%`;
+
+    // Pokaż modal logowania z błędem
+    accountModal.style.display = 'flex';
+
+    // Sprawdź, czy element błędu istnieje, jeśli nie, utwórz go
+    let errorDiv = document.getElementById('account-modal-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'account-modal-error';
+        errorDiv.style.color = '#e74c3c';
+        errorDiv.style.background = 'rgba(231, 76, 60, 0.1)';
+        errorDiv.style.border = '1px solid #e74c3c';
+        errorDiv.style.borderRadius = '6px';
+        errorDiv.style.padding = '10px';
+        errorDiv.style.marginBottom = '15px';
+        errorDiv.style.textAlign = 'center';
+        errorDiv.style.fontSize = '13px';
+        
+        const modalContent = accountModal.querySelector('.modal-content');
+        if (modalContent) {
+            // Wstaw div błędu na początku modala
+            modalContent.insertBefore(errorDiv, modalContent.firstChild);
+        }
+    }
+
+    errorDiv.innerText = 'Twoja sesja wygasła. Usuń konto i zaloguj się ponownie, aby kontynuować.';
+    errorDiv.style.display = 'block';
+});

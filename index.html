@@ -23,9 +23,9 @@
         <div class="main-layout" style="display: none;">
             <nav class="sidebar">
                 <div class="nav-items-container" style="display: flex; flex-direction: column; gap: 5px;">
-                    <div class="nav-item active" data-page="home">🏠</div>
-                    <div class="nav-item" data-page="tools">🛠️</div>
-                    <div class="nav-item" data-page="settings">⚙️</div>
+                    <div class="nav-item active" data-page="home"><span>🏠</span></div>
+                    <div class="nav-item" data-page="tools"><span>🛠️</span></div>
+                    <div class="nav-item" data-page="settings"><span>⚙️</span></div>
                 </div>
                 <div class="account-switcher" id="sidebarAccountBtn" title="Zarządzaj kontami">
                     <img src="https://minotar.net/helm/Steve/32.png" id="sidebarSkin" alt="skin">
@@ -115,6 +115,19 @@
                                     <span class="slider-round"></span>
                                 </label>
                             </label>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="s-info">
+                                <h4>Dźwięki w launcherze</h4>
+                                <p>Efekty dźwiękowe przycisków i interakcji.</p>
+                            </div>
+                            <div class="s-control">
+                                <label class="switch">
+                                    <input type="checkbox" id="soundsCheck">
+                                    <span class="slider-round"></span>
+                                </label>
+                            </div>
                         </div>
 
                         <div class="setting-item">
@@ -325,5 +338,6 @@
     <script src="core/settings_manager.js"></script>
     <script src="core/accounts_manager.js"></script>
     <script src="core/modpacks_manager.js"></script>
+    <script src="core/audio_manager.js"></script>
 </body>
 </html>

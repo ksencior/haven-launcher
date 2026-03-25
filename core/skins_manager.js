@@ -17,6 +17,15 @@ if (skinCanvas && window.skinview3d) {
     let loadSeq = 0;
     let lastObjectUrl = null;
     let pendingAccountForLoad = null;
+    let initStarted = false;
+
+    function getCleanUuid(acc) {
+        // Próbujemy pobrać z auth.uuid (premium) lub accountId (offline)
+        let rawUuid = acc?.auth?.uuid || acc?.accountId;
+        if (!rawUuid) return null;
+        // Zawsze usuwamy myślniki i zamieniamy na małe litery
+        return rawUuid.toString().replace(/-/g, '').toLowerCase();
+    }
 
     const showStatus = (msg, isError = false) => {
         if (!skinStatus) return;
@@ -118,17 +127,27 @@ if (skinCanvas && window.skinview3d) {
         return `https://minotar.net/skin/${username}`;
     };
 
-    const loadSkinForAccount = async (account) => {
-        currentAccount = account;
-        currentUsername = account?.name || 'Steve';
-        const seq = ++loadSeq;
-        const source = await resolveSkinSource(account);
-        if (seq !== loadSeq) return;
-        await safeLoadSkin(source, currentUsername);
-        pendingSkinDataUrl = null;
-        pendingSkinFile = null;
-        if (skinUploadBtn) skinUploadBtn.disabled = true;
-    };
+    async function loadSkinForAccount(acc) {
+        if (!acc) return;
+        
+        const uuid = getCleanUuid(acc);
+        const username = acc.name || 'Steve';
+
+        if (uuid) {
+            // Próbujemy wczytać z Twojego serwera używając UUID
+            // Dodajemy ?t=..., aby uniknąć problemów z cache po restarcie
+            const timestamp = new Date().getTime();
+            const customSkinUrl = `https://havenmine.pl/havenlauncher/api/skins/${uuid}.png?t=${timestamp}`;
+            
+            console.log(`[SKINS] Próba wczytania skina dla: ${username} (${uuid})`);
+            
+            // Funkcja safeLoadSkin powinna najpierw sprawdzić czy plik istnieje, 
+            // a jeśli nie - załadować Minotara
+            await safeLoadSkin(customSkinUrl, username);
+        } else {
+            await safeLoadSkin(`https://minotar.net/skin/${username}`, username);
+        }
+    }
 
     const maybeLoadPendingAccount = () => {
         if (pendingAccountForLoad && canBuildKey(pendingAccountForLoad)) {
@@ -168,6 +187,43 @@ if (skinCanvas && window.skinview3d) {
             }
         }).catch(() => {});
     }
+
+    const waitForReadyAccount = (timeoutMs = 6000) => {
+        return new Promise((resolve) => {
+            const start = Date.now();
+            const tick = () => {
+                const acc = getActiveAccount();
+                if (acc && canBuildKey(acc) && ensureLauncherId()) {
+                    resolve(acc);
+                    return;
+                }
+                if (Date.now() - start >= timeoutMs) {
+                    resolve(null);
+                    return;
+                }
+                setTimeout(tick, 200);
+            };
+            tick();
+        });
+    };
+
+    const initLoad = async () => {
+        if (initStarted) return;
+        initStarted = true;
+        try {
+            if (!launcherId && window.api?.getConfig) {
+                const config = await window.api.getConfig();
+                launcherId = config?.launcherId || launcherId;
+                if (launcherId) window.launcherId = launcherId;
+            }
+        } catch (e) {}
+        const acc = await waitForReadyAccount();
+        if (acc) {
+            await loadSkinForAccount(acc);
+            initialLoaded = true;
+        }
+    };
+    initLoad();
 
     let initialLoaded = false;
 
@@ -246,31 +302,36 @@ if (skinCanvas && window.skinview3d) {
     if (skinUploadBtn) {
         skinUploadBtn.addEventListener('click', async () => {
             if (!pendingSkinFile) return;
-            const acc = getActiveAccount() || currentAccount || { name: currentUsername };
-            const key = await buildSkinKey(acc);
+            const acc = getActiveAccount(); // Twoja funkcja pobierająca aktywne konto
+            if (!acc) return;
+            
             const formData = new FormData();
             formData.append('skin', pendingSkinFile);
-            formData.append('key', key);
-            formData.append('username', acc?.name || currentUsername);
-            formData.append('launcherId', ensureLauncherId() || '');
-            formData.append('accountId', acc?.accountId || '');
+            formData.append('username', acc?.name || currentUsername || 'Player');
+
+            // BEZPIECZNE POBIERANIE UUID
+            // Sprawdzamy po kolei: acc.uuid, potem currentAccount.uuid
+            const userUuid = getCleanUuid(acc);
+            if (userUuid) {
+                formData.append('uuid', userUuid);
+            } else {
+                showStatus('Błąd: Nie odnaleziono identyfikatora konta (UUID).', true);
+                return; 
+            }
+
+            formData.append('launcherId', launcherId);
 
             try {
-                const res = await fetch(SKIN_UPLOAD_URL, {
+                const response = await fetch(SKIN_UPLOAD_URL, {
                     method: 'POST',
                     body: formData
                 });
-                if (!res.ok) {
-                    const text = await res.text().catch(() => '');
-                    throw new Error(text || `HTTP ${res.status}`);
+                const result = await response.json();
+                if (result.ok) {
+                    showStatus('Skin został pomyślnie zaktualizowany!');
                 }
-                pendingSkinDataUrl = null;
-                pendingSkinFile = null;
-                skinUploadBtn.disabled = true;
-                showStatus('Skórka wysłana na serwer.');
-                await loadSkinForAccount(acc);
             } catch (e) {
-                showStatus('Nie udało się wysłać skórki.', true);
+                showStatus('Błąd podczas wysyłania.', true);
             }
         });
     }
@@ -281,7 +342,7 @@ if (skinCanvas && window.skinview3d) {
             pendingSkinDataUrl = null;
             pendingSkinFile = null;
             showStatus('Przywracanie domyślnej skórki...');
-            const key = await buildSkinKey(acc);
+            const key = getCleanUuid(acc);
             if (key) {
                 try {
                     const res = await fetch(SKIN_DELETE_URL, {

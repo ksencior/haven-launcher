@@ -18,7 +18,7 @@ const DiscordRPC =                      require('discord-rpc');
 /*
 TODO:
 - HavenSync
-- Wlasny mod dla HavenPacka
+- Wlasny mod dla HavenPacka (W trakcie)
 - Skiny i pelerynki (HALF DONE)
 - Zrobić tak aby dla graczy na launcherze to skiny ustawione na launcherze tez sie wyswietlaly
 
@@ -72,6 +72,10 @@ const JAVA_CONFIG = {
     '21': {
         url: 'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/adoptium',
         folder: 'java21'
+    },
+    '25': {
+        url: 'https://api.adoptium.net/v3/binary/latest/25/ga/windows/x64/jdk/hotspot/normal/adoptium',
+        folder: 'java25'
     }
 };
 const JAVA_DIR      = path.join(LAUNCHER_PATH, 'runtime');
@@ -287,7 +291,7 @@ function setupAutoUpdater(win) {
 
 function getRequiredJava(mcVersion) {
     const v = mcVersion.split('.').map(Number);
-
+    if (v[0] >= 26) return JAVA_CONFIG['25'];
     if (v[1] > 20 || (v[1] === 20 && v[2] >= 5)) return JAVA_CONFIG['21'];
     if (v[1] >= 17) return JAVA_CONFIG['17'];
     return JAVA_CONFIG['8'];
@@ -437,7 +441,6 @@ async function setupJava(win, requiredVersion = 17) {
     const systemVersion = getSystemJavaVersion();
     
     if (systemVersion >= requiredVersion) {
-        console.log(`Znaleziono pasujaca Jave systemowa (v${systemVersion}).`);
         return 'java'; 
     }
 
@@ -467,6 +470,15 @@ async function setupJava(win, requiredVersion = 17) {
         updateStatus(win, 'Błąd podczas instalowania Javy!');
         throw error;
     }
+}
+
+async function ensureAuthlibInjector(win) {
+    const authlibPath = path.join(LAUNCHER_PATH, 'authlib-injector.jar');
+    if (!fs.existsSync(authlibPath)) {
+        updateStatus(win, 'Pobieranie biblioteki skinów (Authlib)...');
+        await downloadFile(AUTHLIB_INJECTOR_URL, authlibPath, { sender: win.webContents });
+    }
+    return authlibPath;
 }
 
 function getAccounts() {
@@ -2036,6 +2048,30 @@ ipcMain.handle('login-microsoft', async (event) => {
     }
 });
 
+async function syncUserToDatabase(uuid) {
+    const BACKEND_URL = 'https://havenmine.pl/havenlauncher/api/update_player.php';
+    
+    const params = new URLSearchParams();
+    params.append('uuid', uuid);
+
+    try {
+        console.log(`[SYNC] Próba wysłania: ${uuid}`);
+        const data = `uuid=${encodeURIComponent(uuid)}`;
+        const response = await axios({
+            method: 'post',
+            url: BACKEND_URL,
+            data: data,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+
+        console.log(`[SYNC] Odpowiedź serwera:`, response.data);
+    } catch (err) {
+        console.error(`[SYNC] Błąd:`, err.message);
+    }
+}
+
 ipcMain.on('launch-game', async (event, data) => {
 
     launcher.removeAllListeners();
@@ -2096,11 +2132,25 @@ ipcMain.on('launch-game', async (event, data) => {
             return;
         }
     } else {
-        finalAuth = Authenticator.getAuth(data.user);
+        // Generujemy standardowe, offline'owe UUID v3, z którym w 100% zgadza się serwer PHP
+        const crypto = require('crypto');
+        const md5 = crypto.createHash('md5').update("OfflinePlayer:" + data.user, 'utf8').digest();
+        md5[6] = (md5[6] & 0x0f) | 0x30;
+        md5[8] = (md5[8] & 0x3f) | 0x80;
+        const offlineUuid = md5.toString('hex');
+
+        finalAuth = {
+            access_token: crypto.randomBytes(16).toString('hex'),
+            client_token: crypto.randomBytes(16).toString('hex'),
+            uuid: offlineUuid, // Używamy naszego, zgodnego UUID
+            name: data.user,
+            user_properties: '{}'
+        };
     }
     
-    //console.log('[GAME-LAUNCH] finalAuth:', finalAuth);
-    //console.log('[GAME-LAUNCH] finalAuth.profile:', finalAuth?.profile);
+    if (finalAuth && finalAuth.uuid) {
+        syncUserToDatabase(finalAuth.uuid)
+    }
 
     if (!pack) {
         console.error('Could not find definition for', data.version);
@@ -2307,7 +2357,7 @@ ipcMain.on('launch-game', async (event, data) => {
         "--add-opens", "java.base/java.util=ALL-UNNAMED",
         "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
     ];
-    
+
     // Extra JVM args for Forge (module-path comes from version JSON arguments)
     let customArgs = [...forgeFixArgs];
     

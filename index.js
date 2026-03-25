@@ -111,7 +111,8 @@ playBtn.addEventListener('click', () => {
         ram: settings.ram,
         version: selectedPack,
         premiumAuth: activeAccount.type === 'premium' ? activeAccount.auth : null,
-        minimizeToTray: settings.minimizeToTray
+        minimizeToTray: settings.minimizeToTray,
+        accountId: activeAccount.accountId
     }
 
     if (window.api) {

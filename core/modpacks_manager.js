@@ -2,11 +2,13 @@ const createInstancePage = document.getElementById('create-instance-page');
 const modpacksBtnOpen = document.getElementById('createCustomPackBtn');
 const modpacksBtnClose = document.getElementById('backToModpacksBtn');
 const modpacksBtnConfirm = document.getElementById('confirmCreateInstanceBtn');
+const modpacksBtnImport = document.getElementById('importNewModpackBtn')
 const modpacksVersionSelect = document.getElementById('newInstanceVersion');
 const modpacksLoaderSelect = document.getElementById('newInstanceLoader');
 const modpacksLoaderGroup = document.getElementById('loaderGroup');
 const modpacksLoaderHint = document.getElementById('loaderHint');
 const modpacksLoadersContainer = document.getElementById('modloaders-items-container');
+const modpacksOpenInstanceFolderBtn = document.getElementById('modpack-open-instance-folder');
 
 const downloadModpackBtn = document.getElementById('downloadModpacksBtn');
 const downloadModpackPage = document.getElementById('download-modpack-page');
@@ -21,6 +23,14 @@ const processingModal = document.getElementById('processing-modal');
 const processingModalText = processingModal.querySelector('.modal-content-download h2');
 const processingModalProgress = document.getElementById('d-bar-fill');
 const processingModalCancelBtn = document.getElementById('download-cancel-btn');
+
+const modpackShareName = document.getElementById('modpack-share-name');
+const modpackShareIdInput = document.getElementById('modpack-share-id');
+const modpackShareCopyBtn = document.getElementById('modpack-share-copy-btn');
+const modpackImportOverlay = document.getElementById('import-modpack');
+const modpackImportInput = document.getElementById('modpack-import-input');
+const modpackImportConfirmBtn = document.getElementById('modpack-import-confirm-btn');
+const modpackImportCancelBtn = document.getElementById('modpack-import-cancel-btn');
 
 
 let searchTimeout;
@@ -47,6 +57,7 @@ async function openModpackEditor(name, data) {
 
     document.getElementById('editPackTitle').innerText = `${name}`;
     document.getElementById('editPackDetails').innerText = `${capitalizeString(data.loader)} | Minecraft ${data.mcVersion}`;
+    modpackShareName.innerText = `${name}`;
 
     document.getElementById('mods-list-container').innerHTML = '<p style="text-align:center; color:var(--text-dim);">Wpisz coś w wyszukiwarkę, aby znaleźć mody...</p>'
 
@@ -116,6 +127,38 @@ async function loadInstalledMods(instanceFolder) {
 
         container.appendChild(item);
     });
+
+    // generuj id dla paczki, aby znajomy po wklejeniu tego mógł 'skopiować' paczkę
+    if (mods.length > 0) {
+        const packManifest = {
+            n: currentEditingPack.name,
+            v: currentEditingPack.mcVersion,
+            l: currentEditingPack.loader,
+            m: mods.map(m => ({
+                id: m.modId,
+                ver: m.versionId,
+                p: m.provider
+            }))
+        };
+
+        const encodedId = btoa(JSON.stringify(packManifest));
+        const shareCode = `haven://${encodedId}`;
+
+        modpackShareIdInput.value = shareCode;
+
+        modpackShareCopyBtn.onclick = () => {
+            navigator.clipboard.writeText(shareCode);
+            modpackShareCopyBtn.innerText = 'Skopiowano!';
+            modpackShareCopyBtn.style.background = '#2ecc71';
+            setTimeout(() => {
+                modpackShareCopyBtn.innerText = 'Skopiuj';
+                modpackShareCopyBtn.style.background = '';
+            }, 2000);
+        }
+    } else {
+        modpackShareIdInput.value = 'Dodaj mody, aby móc udostępnić paczkę.';
+        modpackShareCopyBtn.onclick = null;
+    }
 }
 
 window.api.onLoadModpacks((modpacks) => {
@@ -260,6 +303,53 @@ if (modpacksBtnOpen) {
 
 modpacksBtnClose.onclick = () => {
     document.querySelector('.nav-item.active').click();
+}
+
+modpacksBtnImport.onclick = () => {
+    modpackImportOverlay.style.display = 'flex';
+}
+modpackImportConfirmBtn.onclick = async () => {
+    modpackImportConfirmBtn.disabled = true;
+    modpackImportCancelBtn.disabled = true;
+    modpackImportConfirmBtn.innerText = 'Wczytywanie..';
+    if (modpackImportInput.value.includes('haven://')) {
+        const code = modpackImportInput.value;
+        const res = await window.api.importModpackFromCode(code);
+        if (res.success) {
+            modpackImportInput.value = 'Zaimportowano.'
+            setTimeout(() => {
+                modpackImportInput.value = '';
+                modpackImportOverlay.style.display = 'none';
+                modpackImportConfirmBtn.disabled = false;
+                modpackImportCancelBtn.disabled = false;
+                modpackImportConfirmBtn.innerText = 'Wgraj';
+            }, 2000);
+        } else {
+            modpackImportInput.value = 'Wystąpił błąd.'
+            setTimeout(() => {
+                modpackImportInput.value = '';
+                modpackImportOverlay.style.display = 'none';
+                modpackImportConfirmBtn.disabled = false;
+                modpackImportCancelBtn.disabled = false;
+                modpackImportConfirmBtn.innerText = 'Wgraj';
+            }, 2000);
+        }
+    } else {
+        modpackImportInput.value = 'Nie rozpoznano kodu paczki.'
+        modpackImportConfirmBtn.disabled = false;
+        modpackImportCancelBtn.disabled = false;
+        modpackImportConfirmBtn.innerText = 'Wgraj';
+    }
+}
+modpackImportCancelBtn.onclick = () => {
+    modpackImportOverlay.style.display = 'none';
+}
+
+modpacksOpenInstanceFolderBtn.onclick = () => {
+    if (currentEditingPack) {
+        const folderName = currentEditingPack.folderName;
+        window.api.openInstanceFolder(folderName);
+    }
 }
 
 async function loadMinecraftVersions() {
@@ -615,4 +705,12 @@ window.api.onModpackDownload(({ modsDownloaded, modsToDownload, packId }) => {
    processingModalText.innerText = `Pobieranie paczki... (${modsDownloaded}/${modsToDownload})`; 
    const percent = Math.round((modsDownloaded / modsToDownload) * 100);
    processingModalProgress.style.width = `${percent}%`;
+   if (modsDownloaded == modsToDownload && processingModal.style.display == 'flex') {processingModal.style.display = 'none'; window.api.refreshModpacks()}
+   if (modpackImportOverlay.style.display == 'flex') {
+        modpackImportInput.value = '';
+        modpackImportOverlay.style.display = 'none';
+        modpackImportConfirmBtn.disabled = false;
+        modpackImportCancelBtn.disabled = false;
+        modpackImportConfirmBtn.innerText = 'Wgraj';
+   }
 });

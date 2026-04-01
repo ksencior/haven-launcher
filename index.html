@@ -220,6 +220,7 @@
                     <div class="header-with-back">
                         <button id="backToModpacksBtn" class="btn-outline">← Wróć</button>
                         <h2>Tworzenie nowej paczki</h2>
+                        <button id="importNewModpackBtn" class="btn-outline">Importuj z kodu</button>
                     </div>
 
                     <div class="create-form-container">
@@ -274,6 +275,7 @@
                             <button class="tab-btn active" data-tab="info">Info</button>
                             <button class="tab-btn" data-tab="mods">Mody</button>
                             <button class="tab-btn" data-tab="share">Udostepnij</button>
+                            <button class="btn-small" id="modpack-open-instance-folder">Otwórz folder</button>
                         </div>
                     </div>
 
@@ -290,6 +292,18 @@
                         </div>
                         <div id="mods-list-container" class="category-grid">
                             </div>
+                    </div>
+
+                    <div class="tab-content" id="tab-share" style="display: none;">
+                        <div class="modpack-share-container">
+                            <h3>Udostępnij:</h3>
+                            <p id="modpack-share-name">MODPACK_NAME</p>
+                            <div class="input-row">
+                                <input type="text" id="modpack-share-id" readonly>
+                                <button class="btn-install" id="modpack-share-copy-btn">Skopiuj</button>
+                            </div>
+                            <small style="margin-top: 2vh">Skopiuj i wyślij kod znajomemu, aby mógł zainstalować twoją własną paczkę!</small>
+                        </div>
                     </div>
                 </div>
 
@@ -361,6 +375,14 @@
                     <div class="d-bar-fill" id="d-bar-fill"></div>
                 </div>
                 <!-- <button class="btn-delete" id="download-cancel-btn">Anuluj</button> -->
+            </div>
+        </div>
+        <div class="modal-overlay" id="import-modpack" style="display: none;">
+            <div class="modal-content">
+                <h1>Importuj paczkę</h1>
+                <input id="modpack-import-input" type="text" placeholder="haven://...">
+                <button id="modpack-import-confirm-btn" class="btn-install">Wgraj</button>
+                <button id="modpack-import-cancel-btn" class="btn-delete">Anuluj</button>
             </div>
         </div>
         <div id="loading-screen" class="loading-screen" style="display: flex;">

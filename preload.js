@@ -38,5 +38,7 @@ contextBridge.exposeInMainWorld('api', {
     onModpackDownload: (callback) => ipcRenderer.on('modpack-download', (event, data) => callback(data)),
     openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
     onAuthRefreshFailed: (callback) => ipcRenderer.on('auth-refresh-failed', () => callback()),
-    installModrinthMod: (data) => ipcRenderer.invoke('install-modrinth-mod', data)
+    installModrinthMod: (data) => ipcRenderer.invoke('install-modrinth-mod', data),
+    importModpackFromCode: (shareCode) => ipcRenderer.invoke('import-modpack-from-code', shareCode),
+    openInstanceFolder: (folderName) => ipcRenderer.invoke('open-instance-folder', folderName)
 });

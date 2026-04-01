@@ -1267,6 +1267,15 @@ input:checked + .slider-round:before { transform: translateX(22px); }
     text-align: center;
 }
 
+.modpack-share-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 2vh 1vw;
+}
+
 @keyframes loading-anim {
     0% {
         scale: 1;

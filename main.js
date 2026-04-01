@@ -1883,6 +1883,14 @@ async function installCurseForgeMod(event, { modId, version, loader, instanceFol
                 console.warn(`[CF-INSTALL] ${targetFile.fileName} już istnieje. Pomijanie pobierania.`);
             }
 
+            saveModToManifest(path.join(instancesPath, instanceFolder), {
+                modId: currentModId,
+                versionId: targetFile.id,
+                provider: 'curseforge',
+                filename: targetFile.fileName,
+                enabled: true
+            })
+
             if (targetFile.dependencies && targetFile.dependencies.length > 0) {
                 for (const dep of targetFile.dependencies) {
                     // RelationType 3 to wymagana zależność
@@ -1979,6 +1987,14 @@ async function installModrinthMod(event, { projectId, mcVersion, loader, instanc
                 console.warn(`[MR-INSTALL] ${primaryFile.filename} już istnieje. Pomijanie pobierania.`);
             }
 
+            saveModToManifest(path.join(instancesPath, instanceFolder), {
+                modId: currentProjectId,
+                versionId: targetVersion.id,
+                provider: 'modrinth',
+                filename: primaryFile.filename,
+                enabled: true
+            });
+
             if (targetVersion.dependencies && targetVersion.dependencies.length > 0) {
                 for (const dep of targetVersion.dependencies) {
                     // Typ zależności 'required'
@@ -1998,7 +2014,7 @@ async function installModrinthMod(event, { projectId, mcVersion, loader, instanc
 
         return { success: true, fileName: mainModFileName };
     } catch (err) {
-        console.error("[MR-INSTALL] Błąd podczas instalacji moda z Modrinth:", err);
+        console.error("[MR-INSTALL] Błąd podczas instalacji moda z Modrinth:", err.message);
         return { success: false, error: 'Błąd pobierania z Modrinth.' };
     }
 }
@@ -2640,6 +2656,74 @@ ipcMain.handle('create-custom-instance', async (event, packData) => {
 
     return newInstance;
 });
+
+ipcMain.handle('import-modpack-from-code', async (event, shareCode) => {
+    try {
+        console.log('Importing from code:', shareCode);
+        const base64Data = shareCode.replace('haven://', '');
+        const packData = JSON.parse(Buffer.from(base64Data, 'base64').toString());
+
+        const folderName = `${packData.n.toLowerCase()}_${Date.now()}`;
+        const instancePath = path.join(instancesPath, folderName);
+        const modsPath = path.join(instancePath, 'mods');
+        if (!fs.existsSync(instancePath)) fs.mkdirSync(instancePath, { recursive: true });
+        console.log('Found packData for:', packData.n);
+        const newPack = {
+            id: folderName,
+            name: `${packData.n} (Importowany)`,
+            mcVersion: packData.v,
+            loader: packData.l,
+            folderName: folderName,
+            isCustom: true
+        };
+
+        let customPacks = [];
+        if (fs.existsSync(userPacksPath)) {
+            customPacks = JSON.parse(fs.readFileSync(userPacksPath, 'utf-8'));
+        }
+        customPacks.push(newPack);
+        fs.writeFileSync(userPacksPath, JSON.stringify(customPacks, null, 4));
+
+        const modsToDownload = packData.m || [];
+        let modsDownloaded = 0;
+        console.log('Installing mods...')
+        for (const mod of modsToDownload) {
+            try {
+                console.log(`Installing ${mod.id} from ${mod.p}`);
+                if (mod.p === 'curseforge') {
+                    await installCurseForgeMod(event, {
+                        modId: mod.id,
+                        version: packData.v,
+                        loader: packData.l,
+                        instanceFolder: folderName
+                    });
+                } else if (mod.p === 'modrinth') {
+                    await installModrinthMod(event, {
+                        projectId: mod.id,
+                        mcVersion: packData.v,
+                        loader: packData.l,
+                        instanceFolder: folderName
+                    });
+                }
+
+                modsDownloaded++;
+                event.sender.send('modpack-download', {
+                    modsDownloaded: modsDownloaded,
+                    modsToDownload: modsToDownload.length,
+                    packId: newPack.id
+                });
+            } catch (modErr) {
+                console.error(`Błąd przy modzie ${mod.id}:`, modErr);
+            }
+        }
+
+        return {success: true, pack: newPack};
+    } catch (err) {
+        console.error('Blad importu:', err);
+        return {success: false, error: err.message};
+    }
+})
+
 ipcMain.handle('ping-server', async (event, host) => {
     const parts = host.split(':');
     const ip = parts[0];
@@ -2822,21 +2906,26 @@ ipcMain.handle('delete-modpack', async (event, packId) => {
 });
 
 ipcMain.handle('get-installed-mods', async (event, instanceFolder) => {
+    const manifestPath = path.join(instancesPath, instanceFolder, 'installed_mods.json');
     const modsPath = path.join(instancesPath, instanceFolder, 'mods');
-    if (!fs.existsSync(modsPath)) return [];
+    if (!fs.existsSync(manifestPath)) {
+        if (!fs.existsSync(modsPath)) return [];
 
-    try {
-        const files = fs.readdirSync(modsPath);
-        return files.filter(file => file.endsWith('.jar') || file.endsWith('.jar.disabled'))
-        .map(file => ({
-            name: file.replace('.disabled', ''),
-            filename: file,
-            enabled: !file.endsWith('.disabled')
-        }));
-    } catch (err) {
-        console.error(err);
-        return [];
+        try {
+            const files = fs.readdirSync(modsPath);
+            return files.filter(file => file.endsWith('.jar') || file.endsWith('.jar.disabled'))
+            .map(file => ({
+                name: file.replace('.disabled', ''),
+                filename: file,
+                enabled: !file.endsWith('.disabled')
+            }));
+        } catch (err) {
+            console.error(err);
+            return [];
+        }
     }
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    return manifest.filter(m => fs.existsSync(path.join(modsPath, m.filename))).map(m => ({modId: m.modId, provider: m.provider, versionId: m.versionId, name: m.filename.replace('.disabled', ''), filename: m.filename, enabled: m.enabled}));
 });
 
 ipcMain.handle('toggle-mod', async (event, { instanceFolder, filename, state }) => {
@@ -3029,7 +3118,27 @@ ipcMain.handle('install-ready-modpack', async (event, packData) => {
     }
 });
 
-ipcMain.handle('install-mod', async (event, { source, modId, version, loader, instanceFolder }) => {
+function saveModToManifest(instanceFolder, modData) {
+    const manifestPath = path.join(instanceFolder, 'installed_mods.json');
+    let manifest = [];
+
+    if (fs.existsSync(manifestPath)) {
+        try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        } catch (e) {manifest = [];}
+    }
+
+    const index = manifest.findIndex(m => m.filename === modData.filename);
+    if (index > -1) {
+        manifest[index] = { ...manifest[index], ...modData };
+    } else {
+        manifest.push(modData);
+    }
+
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+ipcMain.handle('install-mod', async (event, { source, modId, version, loader, instanceFolder }) => {   
     if (source === 'curseforge') {
         return installCurseForgeMod(event, { modId, version, loader, instanceFolder });
     } else if (source === 'modrinth') {
@@ -3086,6 +3195,10 @@ ipcMain.on('open-local-files', () => {
 ipcMain.handle('open-logs-folder', () => {
     shell.openPath(logsPath);
 });
+
+ipcMain.handle('open-instance-folder', (event, folderName) => {
+    shell.openPath(path.join(instancesPath, folderName))
+})
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
